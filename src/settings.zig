@@ -375,6 +375,12 @@ fn updateWindowInfo() void {
     _ = win32.GetCursorPos(&pt);
     const under = win32.WindowFromPoint(pt) orelse return;
     const root = win32.GetAncestor(under, win32.GA_ROOT);
+    // Keep the previously picked window while the cursor is over this dialog,
+    // so moving back to click 确认/添加到… doesn't overwrite the inspected
+    // window's info with the dialog's own. The pick updates only while the
+    // cursor is over an external window.
+    const dlg = g_hDlg orelse return;
+    if (root == dlg) return;
     g_picked = root;
 
     var buf: [1024]u16 = undefined;
