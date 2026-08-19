@@ -218,6 +218,15 @@ const TIP_WINDOW_NAME_DATA = [_]u16{ 0 };
 const TIP_WINDOW_NAME: [*:0]const u16 = @ptrCast(&TIP_WINDOW_NAME_DATA);
 
 // =============================================================================
+// Singleton constants
+// =============================================================================
+
+const ERROR_ALREADY_EXISTS: u32 = 183;
+
+const SINGLETON_MUTEX_NAME_DATA = [_]u16{ 'C', 'C', 'l', 'o', 's', 'e', '_', 'S', 'i', 'n', 'g', 'l', 'e', 't', 'o', 'n', '_', 'M', 'u', 't', 'e', 'x', '_', 'v', '1', 0 };
+const SINGLETON_MUTEX_NAME: [*:0]const u16 = @ptrCast(&SINGLETON_MUTEX_NAME_DATA);
+
+// =============================================================================
 // Structures
 // =============================================================================
 
@@ -300,6 +309,14 @@ extern "kernel32" fn GetModuleFileNameW(
 ) callconv(.winapi) DWORD;
 
 extern "kernel32" fn GetCommandLineW() callconv(.winapi) LPWSTR;
+
+extern "kernel32" fn CreateMutexW(
+    lpMutexAttributes: ?*anyopaque,
+    bInitialOwner: BOOL,
+    lpName: ?LPCWSTR,
+) callconv(.winapi) ?HANDLE;
+
+extern "kernel32" fn GetLastError() callconv(.winapi) u32;
 
 // =============================================================================
 // External Functions - user32.dll
@@ -662,6 +679,10 @@ var g_frequency: i64 = 0;
 var g_hTip: ?HWND = null;
 var g_tip_text: ?LPCWSTR = null;
 var g_tip_visible: bool = false;
+
+// Singleton guard: holds the named mutex for the process lifetime.
+// The kernel closes the handle (and releases the mutex) when the process exits.
+var g_singleton_mutex: ?HANDLE = null;
 
 // Config and l10n (initialized in WM_CREATE)
 var g_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -1190,6 +1211,12 @@ pub export fn wWinMain(
     _ = hPrevInstance;
     _ = lpCmdLine;
     _ = nCmdShow;
+
+    // Single-instance guard: if another CClose is already running, exit silently
+    // before creating any windows, hooks, or tray icon.
+    const mutex = CreateMutexW(null, 0, SINGLETON_MUTEX_NAME);
+    if (GetLastError() == ERROR_ALREADY_EXISTS) return 0;
+    g_singleton_mutex = mutex;
 
     // Set DPI awareness programmatically (no manifest needed)
     _ = SetProcessDPIAware();
