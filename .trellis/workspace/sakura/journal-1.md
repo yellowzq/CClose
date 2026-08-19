@@ -91,3 +91,24 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 5: 修复设置窗口无法编辑（owned-window 激活）
+
+**Date**: 2026-08-19
+**Task**: 修复设置窗口无法编辑（owned-window 激活）
+**Branch**: `master`
+
+### Summary
+
+设置窗口原为隐藏托盘窗口的 owned 子窗口，点击无法激活、编辑框无键盘焦点。改为独立顶层窗口（owner=null）+ 退出时显式销毁。GetGUIThreadInfo 验证焦点进入编辑框、WM_CHAR 字符进入、复选框可切换。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8d623d9` | (see git log) |
+
+### Status
+
+[OK] **Completed**
