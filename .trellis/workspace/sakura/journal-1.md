@@ -112,3 +112,24 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 6: 跟随鼠标保留上次选中窗口
+
+**Date**: 2026-08-19
+**Task**: 跟随鼠标保留上次选中窗口
+**Branch**: `master`
+
+### Summary
+
+updateWindowInfo 增加判断：光标在设置对话框上时保留上次外部窗口选取，不再覆盖为对话框自身。悬停外部窗口信息正确、移回对话框信息保留、确认按钮可正常点击，均已验证。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a01ca12` | (see git log) |
+
+### Status
+
+[OK] **Completed**
