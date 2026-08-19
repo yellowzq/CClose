@@ -1,0 +1,10 @@
+*/bin
+.*
+!/.gitignore
+AGENTS.md
+
+# Trellis workflow data (tasks, journals, spec, scripts) is version-controlled.
+# Only the directory itself is un-ignored; machine-specific runtime state stays
+# local via the nested .trellis/.gitignore rules.
+!/.trellis/
+!/.trellis/.gitignore
