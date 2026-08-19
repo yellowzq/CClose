@@ -16,6 +16,8 @@ const HBRUSH = *anyopaque;
 const HCURSOR = *anyopaque;
 const HANDLE = *anyopaque;
 const HKEY = *opaque {};
+const HDC = *anyopaque;
+const HGDIOBJ = *anyopaque;
 
 const BOOL = i32;
 const BYTE = u8;
@@ -31,6 +33,27 @@ const LPWSTR = [*:0]u16;
 const POINT = extern struct {
     x: LONG,
     y: LONG,
+};
+
+const RECT = extern struct {
+    left: LONG,
+    top: LONG,
+    right: LONG,
+    bottom: LONG,
+};
+
+const SIZE = extern struct {
+    cx: LONG,
+    cy: LONG,
+};
+
+const PAINTSTRUCT = extern struct {
+    hdc: HDC,
+    fErase: BOOL,
+    rcPaint: RECT,
+    fRestore: BOOL,
+    fIncUpdate: BOOL,
+    rgbReserved: [32]u8,
 };
 
 const MSG = extern struct {
@@ -66,6 +89,7 @@ const WM_RBUTTONDOWN: u32 = 0x0204;
 const WM_RBUTTONUP: u32 = 0x0205;
 const WM_MOUSEMOVE: u32 = 0x0200;
 const WM_NCHITTEST: u32 = 0x0084;
+const WM_PAINT: u32 = 0x000F;
 
 const WM_USER: u32 = 0x0400;
 const WM_TRAY: u32 = 0x8001;
@@ -80,6 +104,10 @@ const HTCAPTION: LONG = 2;
 // Extended window styles
 const WS_EX_TOOLWINDOW: u32 = 0x00000080;
 const WS_EX_TOPMOST: u32 = 0x00000008;
+const WS_EX_NOACTIVATE: u32 = 0x08000000;
+
+// Window styles
+const WS_POPUP: u32 = 0x80000000;
 
 // SetWindowPos flags
 const SWP_NOSIZE: u32 = 0x0001;
@@ -87,6 +115,7 @@ const SWP_NOMOVE: u32 = 0x0002;
 const SWP_NOACTIVATE: u32 = 0x0010;
 const SWP_NOZORDER: u32 = 0x0004;
 const SWP_FRAMECHANGED: u32 = 0x0020;
+const SWP_SHOWWINDOW: u32 = 0x0040;
 
 // Window long indices
 const GWL_EXSTYLE: i32 = -20;
@@ -159,6 +188,34 @@ const HOLD_TIMER_ID: usize = 10;
 const HOLD_THRESHOLD_MS: i64 = 1000;
 const DOUBLE_ESC_TIMEOUT_MS: i64 = 500;
 const MOVE_THRESHOLD: i32 = 5;
+
+// =============================================================================
+// Tooltip (always-on-top toast) constants
+// =============================================================================
+
+const TOOLTIP_TIMER_ID: usize = 20;
+const TOOLTIP_SHOW_MS: u32 = 1500;
+const TIP_PAD_X: i32 = 16;
+const TIP_PAD_Y: i32 = 6;
+const TIP_OFFSET_X: i32 = 12;
+const TIP_OFFSET_Y: i32 = 16;
+
+const SW_HIDE: i32 = 0;
+const SM_CXSCREEN: i32 = 0;
+const SM_CYSCREEN: i32 = 1;
+const COLOR_INFOBK: i32 = 24;
+const COLOR_INFOTEXT: i32 = 23;
+const COLOR_WINDOWFRAME: i32 = 6;
+const DEFAULT_GUI_FONT: i32 = 17;
+const TRANSPARENT: i32 = 1;
+const DT_CENTER: u32 = 0x0001;
+const DT_VCENTER: u32 = 0x0004;
+const DT_SINGLELINE: u32 = 0x0020;
+
+const TIP_CLASS_NAME_DATA = [_]u16{ 'C', 'C', 'l', 'o', 's', 'e', 'T', 'i', 'p', 'C', 'l', 'a', 's', 's', 0 };
+const TIP_CLASS_NAME: [*:0]const u16 = @ptrCast(&TIP_CLASS_NAME_DATA);
+const TIP_WINDOW_NAME_DATA = [_]u16{ 0 };
+const TIP_WINDOW_NAME: [*:0]const u16 = @ptrCast(&TIP_WINDOW_NAME_DATA);
 
 // =============================================================================
 // Structures
@@ -438,6 +495,98 @@ extern "user32" fn SetWindowLongW(
     dwNewLong: LONG,
 ) callconv(.winapi) LONG;
 
+extern "user32" fn GetDC(
+    hWnd: ?HWND,
+) callconv(.winapi) ?HDC;
+
+extern "user32" fn ReleaseDC(
+    hWnd: ?HWND,
+    hDC: HDC,
+) callconv(.winapi) i32;
+
+extern "user32" fn BeginPaint(
+    hWnd: HWND,
+    lpPaint: *PAINTSTRUCT,
+) callconv(.winapi) HDC;
+
+extern "user32" fn EndPaint(
+    hWnd: HWND,
+    lpPaint: *const PAINTSTRUCT,
+) callconv(.winapi) BOOL;
+
+extern "user32" fn GetClientRect(
+    hWnd: HWND,
+    lpRect: *RECT,
+) callconv(.winapi) BOOL;
+
+extern "user32" fn InvalidateRect(
+    hWnd: HWND,
+    lpRect: ?*const RECT,
+    bErase: BOOL,
+) callconv(.winapi) BOOL;
+
+extern "user32" fn FillRect(
+    hDC: HDC,
+    lprc: *const RECT,
+    hbr: HBRUSH,
+) callconv(.winapi) i32;
+
+extern "user32" fn FrameRect(
+    hDC: HDC,
+    lprc: *const RECT,
+    hbr: HBRUSH,
+) callconv(.winapi) i32;
+
+extern "user32" fn GetSysColorBrush(
+    nIndex: i32,
+) callconv(.winapi) HBRUSH;
+
+extern "user32" fn GetSysColor(
+    nIndex: i32,
+) callconv(.winapi) u32;
+
+extern "user32" fn SetBkMode(
+    hdc: HDC,
+    iBkMode: i32,
+) callconv(.winapi) i32;
+
+extern "user32" fn SetTextColor(
+    hdc: HDC,
+    crColor: u32,
+) callconv(.winapi) u32;
+
+extern "user32" fn DrawTextW(
+    hdc: HDC,
+    lpchText: LPCWSTR,
+    cchText: i32,
+    lprc: *RECT,
+    format: u32,
+) callconv(.winapi) i32;
+
+extern "user32" fn GetSystemMetrics(
+    nIndex: i32,
+) callconv(.winapi) i32;
+
+// =============================================================================
+// External Functions - gdi32.dll
+// =============================================================================
+
+extern "gdi32" fn GetStockObject(
+    fnObject: i32,
+) callconv(.winapi) ?HGDIOBJ;
+
+extern "gdi32" fn SelectObject(
+    hdc: HDC,
+    h: HGDIOBJ,
+) callconv(.winapi) HGDIOBJ;
+
+extern "gdi32" fn GetTextExtentPoint32W(
+    hdc: HDC,
+    lpString: LPCWSTR,
+    c: i32,
+    lpSize: *SIZE,
+) callconv(.winapi) BOOL;
+
 // =============================================================================
 // External Functions - shell32.dll
 // =============================================================================
@@ -509,6 +658,11 @@ var g_last_esc_time: i64 = 0;
 var g_last_esc_valid: bool = false;
 var g_frequency: i64 = 0;
 
+// Tooltip (always-on-top toast) state
+var g_hTip: ?HWND = null;
+var g_tip_text: ?LPCWSTR = null;
+var g_tip_visible: bool = false;
+
 // Config and l10n (initialized in WM_CREATE)
 var g_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 var g_config: config_mod.Config = undefined;
@@ -524,6 +678,8 @@ var g_ws_exit: [:0]u16 = undefined;
 var g_ws_autostart: [:0]u16 = undefined;
 var g_ws_help_msg: [:0]u16 = undefined;
 var g_ws_about_msg: [:0]u16 = undefined;
+var g_ws_topmost_on: [:0]u16 = undefined;
+var g_ws_topmost_off: [:0]u16 = undefined;
 
 // =============================================================================
 // Helpers
@@ -707,6 +863,12 @@ fn handleHoldTick(hWnd: HWND) void {
             0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
         );
+        // Notify the user of the new always-on-top state near the cursor.
+        if (is_topmost) {
+            showTooltip(g_ws_topmost_off);
+        } else {
+            showTooltip(g_ws_topmost_on);
+        }
         g_hold_active = false;
         stopHoldTimer(hWnd);
     }
@@ -717,6 +879,113 @@ fn nowInMs() i64 {
     _ = QueryPerformanceCounter(&count);
     if (g_frequency == 0) return 0;
     return @divTrunc(count * 1000, g_frequency);
+}
+
+// =============================================================================
+// Tooltip (always-on-top toast)
+// =============================================================================
+
+fn initTooltip() bool {
+    var wc: WNDCLASSEXW = undefined;
+    wc.cbSize = @sizeOf(WNDCLASSEXW);
+    wc.style = 0;
+    wc.lpfnWndProc = tipWndProc;
+    wc.cbClsExtra = 0;
+    wc.cbWndExtra = 0;
+    wc.hInstance = g_hInstance;
+    wc.hIcon = null;
+    wc.hCursor = null;
+    wc.hbrBackground = @as(HBRUSH, @ptrFromInt(@as(usize, 1)));
+    wc.lpszMenuName = null;
+    wc.lpszClassName = TIP_CLASS_NAME;
+    wc.hIconSm = null;
+    _ = RegisterClassExW(&wc);
+
+    const hwnd = CreateWindowExW(
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+        TIP_CLASS_NAME,
+        TIP_WINDOW_NAME,
+        WS_POPUP,
+        0,
+        0,
+        1,
+        1,
+        null,
+        null,
+        g_hInstance,
+        null,
+    ) orelse return false;
+    g_hTip = hwnd;
+    g_tip_visible = false;
+    return true;
+}
+
+fn hideTooltip() void {
+    const tip = g_hTip orelse return;
+    _ = KillTimer(tip, TOOLTIP_TIMER_ID);
+    if (g_tip_visible) {
+        _ = ShowWindow(tip, SW_HIDE);
+        g_tip_visible = false;
+    }
+}
+
+fn showTooltip(text: [:0]const u16) void {
+    const tip = g_hTip orelse return;
+    g_tip_text = text.ptr;
+    // Measure the text with the same font that paints it.
+    var sz: SIZE = .{ .cx = 120, .cy = 20 };
+    if (GetDC(null)) |hdc| {
+        defer _ = ReleaseDC(null, hdc);
+        if (GetStockObject(DEFAULT_GUI_FONT)) |hFont| {
+            const prev = SelectObject(hdc, hFont);
+            _ = GetTextExtentPoint32W(hdc, text.ptr, @intCast(text.len), &sz);
+            _ = SelectObject(hdc, prev);
+        }
+    }
+    const w = sz.cx + TIP_PAD_X * 2;
+    const h = sz.cy + TIP_PAD_Y * 2;
+    var pt: POINT = undefined;
+    _ = GetCursorPos(&pt);
+    const scr_w = GetSystemMetrics(SM_CXSCREEN);
+    const scr_h = GetSystemMetrics(SM_CYSCREEN);
+    const x = std.math.clamp(pt.x + TIP_OFFSET_X, 0, scr_w - w);
+    const y = std.math.clamp(pt.y + TIP_OFFSET_Y, 0, scr_h - h);
+    _ = SetWindowPos(tip, HWND_TOPMOST, x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    g_tip_visible = true;
+    _ = InvalidateRect(tip, null, @as(BOOL, 1));
+    _ = SetTimer(tip, TOOLTIP_TIMER_ID, TOOLTIP_SHOW_MS, null);
+}
+
+fn tipWndProc(hWnd: HWND, message: u32, wParam: WPARAM, lParam: LPARAM) callconv(.winapi) LRESULT {
+    switch (message) {
+        WM_PAINT => {
+            var ps: PAINTSTRUCT = undefined;
+            const hdc = BeginPaint(hWnd, &ps);
+            defer _ = EndPaint(hWnd, &ps);
+            var rc: RECT = undefined;
+            _ = GetClientRect(hWnd, &rc);
+            _ = FillRect(hdc, &rc, GetSysColorBrush(COLOR_INFOBK));
+            _ = FrameRect(hdc, &rc, GetSysColorBrush(COLOR_WINDOWFRAME));
+            if (g_tip_text) |text| {
+                _ = SetBkMode(hdc, TRANSPARENT);
+                _ = SetTextColor(hdc, GetSysColor(COLOR_INFOTEXT));
+                if (GetStockObject(DEFAULT_GUI_FONT)) |hFont| {
+                    _ = SelectObject(hdc, hFont);
+                }
+                _ = DrawTextW(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            }
+            return 0;
+        },
+        WM_TIMER => {
+            if (wParam == TOOLTIP_TIMER_ID) {
+                hideTooltip();
+            }
+            return 0;
+        },
+        else => {
+            return DefWindowProcW(hWnd, message, wParam, lParam);
+        },
+    }
 }
 
 // =============================================================================
@@ -838,6 +1107,8 @@ fn wndProc(hWnd: HWND, message: u32, wParam: WPARAM, lParam: LPARAM) callconv(.w
             g_ws_autostart = toWide(a, g_strs.menu_autostart) catch unreachable;
             g_ws_help_msg = toWide(a, g_strs.help_msg) catch unreachable;
             g_ws_about_msg = toWide(a, g_strs.about_msg) catch unreachable;
+            g_ws_topmost_on = toWide(a, g_strs.topmost_on_tip) catch unreachable;
+            g_ws_topmost_off = toWide(a, g_strs.topmost_off_tip) catch unreachable;
             _ = addTrayIcon(hWnd, g_hInstance);
             _ = installHooks();
             _ = QueryPerformanceFrequency(&g_frequency);
@@ -888,6 +1159,10 @@ fn wndProc(hWnd: HWND, message: u32, wParam: WPARAM, lParam: LPARAM) callconv(.w
             g_hold_active = false;
             uninstallHooks();
             removeTrayIcon(hWnd);
+            if (g_hTip) |tip| {
+                hideTooltip();
+                _ = DestroyWindow(tip);
+            }
             // Save config and cleanup
             g_config.save(std.heap.page_allocator);
             g_arena.deinit();
@@ -958,6 +1233,7 @@ pub export fn wWinMain(
     } else {
         return 1;
     }
+    _ = initTooltip();
 
     var msg: MSG = undefined;
     while (true) {
