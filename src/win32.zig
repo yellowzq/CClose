@@ -88,6 +88,7 @@ pub const WM_MBUTTONUP: u32 = 0x0208;
 pub const WM_RBUTTONDOWN: u32 = 0x0204;
 pub const WM_RBUTTONUP: u32 = 0x0205;
 pub const WM_MOUSEMOVE: u32 = 0x0200;
+pub const WM_MOUSEWHEEL: u32 = 0x020A;
 pub const WM_NCHITTEST: u32 = 0x0084;
 pub const WM_PAINT: u32 = 0x000F;
 
@@ -107,9 +108,21 @@ pub const HTCAPTION: LONG = 2;
 pub const WS_EX_TOOLWINDOW: u32 = 0x00000080;
 pub const WS_EX_TOPMOST: u32 = 0x00000008;
 pub const WS_EX_NOACTIVATE: u32 = 0x08000000;
+pub const WS_EX_LAYERED: u32 = 0x00080000;
+
+// Layered window attributes flags
+pub const LWA_ALPHA: u32 = 2;
 
 // Window styles
 pub const WS_POPUP: u32 = 0x80000000;
+pub const WS_CHILD: u32 = 0x40000000;
+pub const WS_CLIPSIBLINGS: u32 = 0x04000000;
+pub const WS_BORDER: u32 = 0x00800000;
+pub const WS_VISIBLE: u32 = 0x10000000;
+pub const WS_VSCROLL: u32 = 0x00200000;
+pub const WS_TABSTOP: u32 = 0x00010000;
+pub const WS_CAPTION: u32 = 0x00C00000;
+pub const WS_SYSMENU: u32 = 0x00080000;
 
 // SetWindowPos flags
 pub const SWP_NOSIZE: u32 = 0x0001;
@@ -121,6 +134,9 @@ pub const SWP_SHOWWINDOW: u32 = 0x0040;
 
 // Window long indices
 pub const GWL_EXSTYLE: i32 = -20;
+
+// GetAncestor flags
+pub const GA_ROOT: u32 = 2;
 
 // File system
 pub const MAX_PATH: u32 = 260;
@@ -141,6 +157,7 @@ pub const MF_UNCHECKED: u32 = 0;
 
 // Keyboard virtual key codes
 pub const VK_ESCAPE: DWORD = 0x1B;
+pub const VK_CONTROL: DWORD = 0x11;
 
 // Hook action codes
 pub const HC_ACTION: i32 = 0;
@@ -151,6 +168,28 @@ pub const LLKHF_UP: DWORD = 0x80;
 // TrackPopupMenu flags
 pub const TPM_RIGHTALIGN: u32 = 0x0008;
 pub const TPM_RETURNCMD: u32 = 0x0100;
+
+// Control styles (buttons, statics, edits, listboxes)
+pub const BS_PUSHBUTTON: u32 = 0x0000;
+pub const BS_DEFPUSHBUTTON: u32 = 0x0001;
+pub const BS_AUTOCHECKBOX: u32 = 0x0003;
+pub const BS_GROUPBOX: u32 = 0x0007;
+pub const SS_LEFT: u32 = 0x0000;
+pub const ES_AUTOHSCROLL: u32 = 0x0080;
+pub const ES_READONLY: u32 = 0x0800;
+pub const LBS_NOTIFY: u32 = 0x0001;
+
+// Control messages
+pub const WM_GETTEXT: u32 = 0x000D;
+pub const WM_SETTEXT: u32 = 0x000C;
+pub const WM_SETFONT: u32 = 0x0030;
+pub const WM_CTLCOLORSTATIC: u32 = 0x0138;
+pub const BM_GETCHECK: u32 = 0x00F0;
+pub const BM_SETCHECK: u32 = 0x00F1;
+pub const LB_ADDSTRING: u32 = 0x0180;
+pub const LB_DELETESTRING: u32 = 0x0182;
+pub const LB_RESETCONTENT: u32 = 0x0184;
+pub const LB_GETCURSEL: u32 = 0x0188;
 
 // Registry constants
 pub const HKEY_CURRENT_USER: HKEY = @ptrFromInt(@as(usize, 0x80000001));
@@ -170,6 +209,7 @@ pub const IDI_APPLICATION: DWORD = 32512;
 pub const SW_HIDE: i32 = 0;
 pub const SM_CXSCREEN: i32 = 0;
 pub const SM_CYSCREEN: i32 = 1;
+pub const COLOR_BTNFACE: i32 = 15;
 pub const COLOR_INFOBK: i32 = 24;
 pub const COLOR_INFOTEXT: i32 = 23;
 pub const COLOR_WINDOWFRAME: i32 = 6;
@@ -181,6 +221,9 @@ pub const DT_SINGLELINE: u32 = 0x0020;
 
 // Error codes
 pub const ERROR_ALREADY_EXISTS: u32 = 183;
+
+// Process access rights
+pub const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
 
 // =============================================================================
 // Structures
@@ -273,6 +316,23 @@ pub extern "kernel32" fn CreateMutexW(
 ) callconv(.winapi) ?HANDLE;
 
 pub extern "kernel32" fn GetLastError() callconv(.winapi) u32;
+
+pub extern "kernel32" fn OpenProcess(
+    dwDesiredAccess: u32,
+    bInheritHandle: BOOL,
+    dwProcessId: u32,
+) callconv(.winapi) ?HANDLE;
+
+pub extern "kernel32" fn QueryFullProcessImageNameW(
+    hProcess: ?HANDLE,
+    dwFlags: u32,
+    lpExeName: [*]u16,
+    lpdwSize: *u32,
+) callconv(.winapi) BOOL;
+
+pub extern "kernel32" fn CloseHandle(
+    hObject: ?HANDLE,
+) callconv(.winapi) BOOL;
 
 // =============================================================================
 // External Functions - user32.dll
@@ -541,6 +601,51 @@ pub extern "user32" fn GetSystemMetrics(
 ) callconv(.winapi) i32;
 
 pub extern "user32" fn SetProcessDPIAware() callconv(.winapi) BOOL;
+
+pub extern "user32" fn SetLayeredWindowAttributes(
+    hwnd: HWND,
+    crKey: u32,
+    bAlpha: u8,
+    dwFlags: u32,
+) callconv(.winapi) BOOL;
+
+pub extern "user32" fn GetLayeredWindowAttributes(
+    hwnd: HWND,
+    pcrKey: ?*u32,
+    pbAlpha: ?*u8,
+    pdwFlags: ?*u32,
+) callconv(.winapi) BOOL;
+
+pub extern "user32" fn GetWindowTextW(
+    hWnd: HWND,
+    lpString: [*]u16,
+    nMaxCount: i32,
+) callconv(.winapi) i32;
+
+pub extern "user32" fn GetAsyncKeyState(
+    vKey: i32,
+) callconv(.winapi) i16;
+
+pub extern "user32" fn GetAncestor(
+    hwnd: HWND,
+    gaFlags: u32,
+) callconv(.winapi) HWND;
+
+pub extern "user32" fn SetFocus(
+    hWnd: HWND,
+) callconv(.winapi) ?HWND;
+
+pub extern "user32" fn IsDialogMessageW(
+    hDlg: HWND,
+    lpMsg: *const MSG,
+) callconv(.winapi) BOOL;
+
+pub extern "user32" fn AdjustWindowRectEx(
+    lpRect: *RECT,
+    dwStyle: u32,
+    bMenu: BOOL,
+    dwExStyle: u32,
+) callconv(.winapi) BOOL;
 
 // =============================================================================
 // External Functions - gdi32.dll

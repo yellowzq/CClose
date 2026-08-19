@@ -46,6 +46,7 @@ pub const Config = struct {
     enable_titlebar_hold_left_click: bool = true,
     enable_esc_double_press: bool = true,
     enable_taskbar_right_click: bool = true,
+    enable_transparency: bool = true,
     autostart: bool = true,
     titlebar_exceptions: std.ArrayList([]const u8),
     esc_blacklist: std.ArrayList([]const u8),
@@ -71,6 +72,7 @@ pub const Config = struct {
         self.enable_titlebar_hold_left_click = readBool(ini_path, "General", "EnableTitleBarHoldLeftClick", true);
         self.enable_esc_double_press = readBool(ini_path, "General", "EnableEscKeyDoublePress", true);
         self.enable_taskbar_right_click = readBool(ini_path, "General", "EnableTaskbarButtonRightClick", true);
+        self.enable_transparency = readBool(ini_path, "General", "EnableTransparency", true);
         self.autostart = readBool(ini_path, "Autostart", "EnableAutostart", true);
 
         const ex_list = readStr(ini_path, "Advanced", "TitleBarExceptionList", "", a);
@@ -93,6 +95,7 @@ pub const Config = struct {
         writeBool(ini_path, "General", "EnableTitleBarHoldLeftClick", self.enable_titlebar_hold_left_click);
         writeBool(ini_path, "General", "EnableEscKeyDoublePress", self.enable_esc_double_press);
         writeBool(ini_path, "General", "EnableTaskbarButtonRightClick", self.enable_taskbar_right_click);
+        writeBool(ini_path, "General", "EnableTransparency", self.enable_transparency);
         writeBool(ini_path, "Autostart", "EnableAutostart", self.autostart);
         writeList(ini_path, "Advanced", "TitleBarExceptionList", self.titlebar_exceptions.items, a);
         writeList(ini_path, "Advanced", "EscHotkeyBlackList", self.esc_blacklist.items, a);
