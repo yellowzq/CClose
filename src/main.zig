@@ -152,7 +152,7 @@ fn wndProc(hWnd: win32.HWND, message: u32, wParam: win32.WPARAM, lParam: win32.L
                     }
                 },
                 IDM_AUTOSTART => toggleAutostart(),
-                IDM_SETTINGS => settings.show(hWnd, g_hInstance, &g_config, &g_strs, g_arena.allocator()),
+                IDM_SETTINGS => settings.show(g_hInstance, &g_config, &g_strs, g_arena.allocator()),
                 IDM_HELP => {
                     _ = win32.MessageBoxW(null, @as(win32.LPCWSTR, g_ws_help_msg.ptr), APP_NAME, 0);
                 },
@@ -176,6 +176,9 @@ fn wndProc(hWnd: win32.HWND, message: u32, wParam: win32.WPARAM, lParam: win32.L
             hooks.shutdown();
             tray.remove(hWnd);
             tooltip.destroy();
+            // The settings dialog is now an unowned top-level window, so close
+            // it explicitly before tearing down the arena it allocates from.
+            if (settings.isActive()) _ = win32.DestroyWindow(settings.hwnd());
             // Save config and cleanup
             g_config.save(std.heap.page_allocator);
             g_arena.deinit();

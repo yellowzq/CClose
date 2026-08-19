@@ -112,7 +112,7 @@ pub fn hwnd() win32.HWND {
 
 /// Open (or raise) the settings dialog. `cfg` and `strs` are owned by main.zig;
 /// `a` is the arena used for list-item strings, so edits share one lifetime.
-pub fn show(hParent: win32.HWND, hInstance: win32.HINSTANCE, cfg: *config_mod.Config, strs: *const lang_mod.Strings, a: std.mem.Allocator) void {
+pub fn show(hInstance: win32.HINSTANCE, cfg: *config_mod.Config, strs: *const lang_mod.Strings, a: std.mem.Allocator) void {
     if (g_hDlg) |h| {
         _ = win32.SetForegroundWindow(h);
         return;
@@ -145,7 +145,11 @@ pub fn show(hParent: win32.HWND, hInstance: win32.HINSTANCE, cfg: *config_mod.Co
         y,
         win_w,
         win_h,
-        hParent,
+        // Standalone top-level window. Owning it to the hidden tray window
+        // broke click-activation: the dialog never became the active window,
+        // so its edit boxes could not receive keyboard focus and typing was
+        // impossible. As an unowned window it activates on any click.
+        null,
         null,
         hInstance,
         null,
@@ -233,29 +237,34 @@ fn createControls(hWnd: win32.HWND) void {
     const base = win32.WS_CHILD | win32.WS_VISIBLE | win32.WS_CLIPSIBLINGS;
 
     // Group 1: feature switches.
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.settings_features, &buf).ptr, base | win32.BS_GROUPBOX, 12, 10, 376, 150, 0);
     g_hchk_middle = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_titlebar_middle_click, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 30, 360, 20, ID_EN_MIDDLE);
     g_hchk_right = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_titlebar_right_click, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 55, 360, 20, ID_EN_RIGHT);
     g_hchk_hold = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_titlebar_hold_left_click, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 80, 360, 20, ID_EN_HOLD);
     g_hchk_esc = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_esc_double_press, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 105, 360, 20, ID_EN_ESC);
     g_hchk_trans = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.settings_enable_transparency, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 130, 360, 20, ID_EN_TRANSPARENCY);
+    // Group boxes are created after their contents: child windows are placed at
+    // the bottom of the sibling z-order when created, so a group box created
+    // first would sit ON TOP of its contents and swallow every click aimed at
+    // them (edit boxes could never gain focus, checkboxes never toggle).
+    // Creating it last keeps it a paint-only frame that hit-testing passes
+    // through to the controls it visually frames.
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.settings_features, &buf).ptr, base | win32.BS_GROUPBOX, 12, 10, 376, 150, 0);
 
     // Group 2: title-bar exception list (work area).
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.tab_exception_list, &buf).ptr, base | win32.BS_GROUPBOX, 12, 168, 376, 164, 0);
     g_hlb_except = ctrl(hWnd, &CLASS_LISTBOX, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.WS_VSCROLL | win32.LBS_NOTIFY, 24, 186, 270, 86, ID_LB_EXCEPT);
     g_hedit_except = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL, 24, 278, 270, 24, ID_EDIT_EXCEPT);
     _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 186, 74, 24, ID_ADD_EXCEPT);
     _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.delete, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 216, 74, 24, ID_DEL_EXCEPT);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.tab_exception_list, &buf).ptr, base | win32.BS_GROUPBOX, 12, 168, 376, 164, 0);
 
     // Group 3: Esc hotkey blacklist.
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.tab_blacklist, &buf).ptr, base | win32.BS_GROUPBOX, 12, 340, 376, 164, 0);
     g_hlb_black = ctrl(hWnd, &CLASS_LISTBOX, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.WS_VSCROLL | win32.LBS_NOTIFY, 24, 358, 270, 86, ID_LB_BLACK);
     g_hedit_black = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL, 24, 450, 270, 24, ID_EDIT_BLACK);
     _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 358, 74, 24, ID_ADD_BLACK);
     _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.delete, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 388, 74, 24, ID_DEL_BLACK);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.tab_blacklist, &buf).ptr, base | win32.BS_GROUPBOX, 12, 340, 376, 164, 0);
 
     // Group 4: window info picker.
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.window_info, &buf).ptr, base | win32.BS_GROUPBOX, 12, 512, 376, 138, 0);
     g_hchk_follow = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.follow_mouse, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 528, 150, 20, ID_CHK_FOLLOW);
     _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add_to_exception, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 180, 528, 95, 22, ID_PICK_EXCEPT);
     _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add_to_blacklist, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 283, 528, 97, 22, ID_PICK_BLACK);
@@ -268,6 +277,7 @@ fn createControls(hWnd: win32.HWND) void {
     g_htxt_exe = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL | win32.ES_READONLY, 72, 602, 304, 22, ID_TXT_EXE);
     _ = ctrl(hWnd, &CLASS_STATIC, wbuf(g_strs.field_pid, &buf).ptr, base | win32.SS_LEFT, 24, 628, 44, 18, 0);
     g_htxt_pid = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL | win32.ES_READONLY, 72, 626, 304, 22, ID_TXT_PID);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.window_info, &buf).ptr, base | win32.BS_GROUPBOX, 12, 512, 376, 138, 0);
 
     // Bottom buttons.
     g_hbtn_ok = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.ok, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_DEFPUSHBUTTON, 236, 656, 76, 24, ID_OK);
