@@ -68,3 +68,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: pro-features：无标题栏窗口/工作区、Esc 黑名单、Ctrl+滚轮透明度 + 设置对话框
+
+**Date**: 2026-08-19
+**Task**: pro-features：无标题栏窗口/工作区、Esc 黑名单、Ctrl+滚轮透明度 + 设置对话框
+**Branch**: `master`
+
+### Summary
+
+完成 CClose Pro 三项功能：例外列表改为工作区语义（列入窗口整面可当标题栏，GA_ROOT 匹配）、双击 Esc 关闭可设黑名单（esc_blacklist 保留类名匹配）、新增 Ctrl+滚轮调整窗口透明度（WS_EX_LAYERED+LWA_ALPHA，50-255，GetAncestor 取顶层）。新建 settings.zig 自包含模型态设置对话框（5 项功能开关、工作区/黑名单列表增删、跟随鼠标窗口信息拾取），main 消息循环接入 IsDialogMessageW。ini 新增 General/EnableTransparency。分组提交 3 个（3ac9554/4d086e4/bf7e68b），ReleaseSafe 构建通过，冒烟测试通过。本轮另将 .trellis 工作区纳入版本控制（5994cd0）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bf7e68b` | (see git log) |
+| `4d086e4` | (see git log) |
+| `3ac9554` | (see git log) |
+
+### Status
+
+[OK] **Completed**
