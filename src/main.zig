@@ -5,6 +5,7 @@ const win32 = @import("win32.zig");
 const tooltip = @import("tooltip.zig");
 const tray = @import("tray.zig");
 const hooks = @import("hooks.zig");
+const settings = @import("settings.zig");
 
 // =============================================================================
 // App-specific constants
@@ -28,6 +29,7 @@ const IDM_AUTOSTART: usize = 1001;
 const IDM_EXIT: usize = 1002;
 const IDM_HELP: usize = 1003;
 const IDM_ABOUT: usize = 1004;
+const IDM_SETTINGS: usize = 1005;
 
 // Singleton constants
 const SINGLETON_MUTEX_NAME_DATA = [_]u16{ 'C', 'C', 'l', 'o', 's', 'e', '_', 'S', 'i', 'n', 'g', 'l', 'e', 't', 'o', 'n', '_', 'M', 'u', 't', 'e', 'x', '_', 'v', '1', 0 };
@@ -87,6 +89,7 @@ fn showContextMenu(hWnd: win32.HWND) void {
 
     _ = win32.AppendMenuW(hMenu, win32.MF_STRING, IDM_SUSPEND, if (hooks.isSuspended()) @as(?win32.LPCWSTR, g_ws_resume.ptr) else @as(?win32.LPCWSTR, g_ws_suspend.ptr));
     _ = win32.AppendMenuW(hMenu, win32.MF_STRING, IDM_AUTOSTART, @as(?win32.LPCWSTR, g_ws_autostart.ptr));
+    _ = win32.AppendMenuW(hMenu, win32.MF_STRING, IDM_SETTINGS, @as(?win32.LPCWSTR, g_ws_settings.ptr));
     _ = win32.AppendMenuW(hMenu, win32.MF_SEPARATOR, 0, null);
     _ = win32.AppendMenuW(hMenu, win32.MF_STRING, IDM_HELP, @as(?win32.LPCWSTR, g_ws_help.ptr));
     _ = win32.AppendMenuW(hMenu, win32.MF_STRING, IDM_ABOUT, @as(?win32.LPCWSTR, g_ws_about.ptr));
@@ -149,6 +152,7 @@ fn wndProc(hWnd: win32.HWND, message: u32, wParam: win32.WPARAM, lParam: win32.L
                     }
                 },
                 IDM_AUTOSTART => toggleAutostart(),
+                IDM_SETTINGS => settings.show(hWnd, g_hInstance, &g_config, &g_strs, g_arena.allocator()),
                 IDM_HELP => {
                     _ = win32.MessageBoxW(null, @as(win32.LPCWSTR, g_ws_help_msg.ptr), APP_NAME, 0);
                 },
@@ -253,6 +257,11 @@ pub export fn wWinMain(
         const get_msg_result = win32.GetMessageW(&msg, null, 0, 0);
         if (get_msg_result == 0) break;
         if (get_msg_result == -1) break;
+        // While the modeless settings dialog is open, let IsDialogMessageW
+        // handle Tab navigation and Enter/Esc so it behaves like a dialog.
+        if (settings.isActive() and win32.IsDialogMessageW(settings.hwnd(), &msg) != 0) {
+            continue;
+        }
         _ = win32.TranslateMessage(&msg);
         _ = win32.DispatchMessageW(&msg);
     }
