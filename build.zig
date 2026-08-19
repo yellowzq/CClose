@@ -4,13 +4,17 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const mod = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    // Embed the app icon into the exe (assets/app.rc -> assets/app.ico).
+    mod.addWin32ResourceFile(.{ .file = b.path("assets/app.rc") });
+
     const exe = b.addExecutable(.{
         .name = "CClose",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
+        .root_module = mod,
     });
     exe.win32_manifest = null;
     exe.subsystem = .windows;

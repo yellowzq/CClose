@@ -6,6 +6,7 @@ const std = @import("std");
 const config_mod = @import("config.zig");
 const lang_mod = @import("lang.zig");
 const win32 = @import("win32.zig");
+const icon = @import("icon.zig");
 
 // =============================================================================
 // Class and control identifiers
@@ -172,12 +173,12 @@ fn registerClass(hInstance: win32.HINSTANCE) void {
     wc.cbClsExtra = 0;
     wc.cbWndExtra = 0;
     wc.hInstance = hInstance;
-    wc.hIcon = null;
+    wc.hIcon = icon.app();
+    wc.hIconSm = wc.hIcon;
     wc.hCursor = null;
     wc.hbrBackground = @as(win32.HBRUSH, @ptrFromInt(@as(usize, @intCast(win32.COLOR_BTNFACE + 1))));
     wc.lpszMenuName = null;
     wc.lpszClassName = SETTINGS_CLASS;
-    wc.hIconSm = null;
     if (win32.RegisterClassExW(&wc) != 0) g_class_registered = true;
 }
 

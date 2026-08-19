@@ -4,6 +4,7 @@ const lang_mod = @import("lang.zig");
 const win32 = @import("win32.zig");
 const tooltip = @import("tooltip.zig");
 const tray = @import("tray.zig");
+const icon = @import("icon.zig");
 const hooks = @import("hooks.zig");
 const settings = @import("settings.zig");
 
@@ -224,12 +225,12 @@ pub export fn wWinMain(
     wc.cbClsExtra = 0;
     wc.cbWndExtra = 0;
     wc.hInstance = hInstance;
-    wc.hIcon = win32.LoadIconW(null, @as(win32.LPCWSTR, @ptrFromInt(@as(usize, win32.IDI_APPLICATION))));
+    wc.hIcon = icon.app();
+    wc.hIconSm = wc.hIcon;
     wc.hCursor = win32.LoadCursorW(null, @as(win32.LPCWSTR, @ptrFromInt(@as(usize, 32512))));
     wc.hbrBackground = @as(win32.HBRUSH, @ptrFromInt(@as(usize, 1)));
     wc.lpszMenuName = null;
     wc.lpszClassName = CLASS_NAME;
-    wc.hIconSm = null;
 
     const class_atom = win32.RegisterClassExW(&wc);
     if (class_atom == 0) return 1;

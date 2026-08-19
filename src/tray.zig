@@ -1,6 +1,7 @@
 // System tray icon: add/remove the tray icon and its tooltip string.
 
 const win32 = @import("win32.zig");
+const icon = @import("icon.zig");
 
 const TRAY_ICON_ID: u32 = 1;
 const TRAY_TOOLTIP = "CClose - window management";
@@ -13,8 +14,7 @@ pub fn add(hWnd: win32.HWND, _: win32.HINSTANCE) bool {
     nid.uID = TRAY_ICON_ID;
     nid.uFlags = win32.NIF_MESSAGE | win32.NIF_ICON | win32.NIF_TIP;
     nid.uCallbackMessage = win32.WM_TRAY;
-    const idi_app: win32.LPCWSTR = @ptrFromInt(@as(usize, win32.IDI_APPLICATION));
-    nid.hIcon = win32.LoadIconW(null, idi_app);
+    nid.hIcon = icon.app();
     @memset(nid.szTip[0..], 0);
     const tip = TRAY_TOOLTIP;
     for (tip, 0..) |c, i| {
