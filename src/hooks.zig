@@ -210,6 +210,29 @@ fn isCaptionAt(hWnd: win32.HWND, x: win32.LONG, y: win32.LONG) bool {
 }
 
 // =============================================================================
+// Ctrl + mouse wheel transparency
+// =============================================================================
+
+const MIN_ALPHA: i32 = 50;
+const MAX_ALPHA: i32 = 255;
+const ALPHA_STEP: i32 = 15;
+
+fn adjustOpacity(hwnd: win32.HWND, wheel_delta: i32) void {
+    var alpha: u8 = 255;
+    var flags: u32 = 0;
+    if (win32.GetLayeredWindowAttributes(hwnd, null, &alpha, &flags) == 0) {
+        alpha = 255; // Not layered yet: treat as fully opaque.
+    }
+    const current: i32 = alpha;
+    var next = current + @divTrunc(wheel_delta, 120) * ALPHA_STEP;
+    next = std.math.clamp(next, MIN_ALPHA, MAX_ALPHA);
+    const ex = win32.GetWindowLongW(hwnd, win32.GWL_EXSTYLE);
+    const layered_ex = ex | @as(win32.LONG, @intCast(win32.WS_EX_LAYERED));
+    _ = win32.SetWindowLongW(hwnd, win32.GWL_EXSTYLE, layered_ex);
+    _ = win32.SetLayeredWindowAttributes(hwnd, 0, @intCast(next), win32.LWA_ALPHA);
+}
+
+// =============================================================================
 // Hook Procedures
 // =============================================================================
 
@@ -226,11 +249,14 @@ fn mouseHookProc(nCode: i32, wParam: win32.WPARAM, lParam: win32.LPARAM) callcon
                         stopHoldTimer(g_hWnd);
                         return win32.CallNextHookEx(g_hMouseHook orelse null, nCode, wParam, lParam);
                     }
-                    if (isCaptionAt(hwnd, ms.pt.x, ms.pt.y)) {
-                        // Check exception list
-                        if (isExceptionWindow(hwnd, g_config.titlebar_exceptions.items)) {
-                            return win32.CallNextHookEx(g_hMouseHook orelse null, nCode, wParam, lParam);
-                        }
+                    // Work-area semantics: a window listed in the exception list
+                    // treats its whole surface as a title bar, so title-bar
+                    // features work on windows without a proper one. Match the
+                    // class name against the top-level window so clicks over
+                    // child controls of an excepted window also count.
+                    const in_workarea = isCaptionAt(hwnd, ms.pt.x, ms.pt.y) or
+                        isExceptionWindow(win32.GetAncestor(hwnd, win32.GA_ROOT), g_config.titlebar_exceptions.items);
+                    if (in_workarea) {
                         switch (wParam) {
                             win32.WM_MBUTTONDOWN => {
                                 if (g_config.enable_titlebar_middle_click) {
@@ -270,6 +296,23 @@ fn mouseHookProc(nCode: i32, wParam: win32.WPARAM, lParam: win32.LPARAM) callcon
                     if (dist2 > MOVE_THRESHOLD * MOVE_THRESHOLD) {
                         g_hold_active = false;
                         stopHoldTimer(g_hWnd);
+                    }
+                }
+            },
+            win32.WM_MOUSEWHEEL => {
+                if (g_config.enable_transparency) {
+                    // Low-level hooks don't carry modifier info; poll Ctrl directly.
+                    const ctrl_down = (@as(u16, @bitCast(win32.GetAsyncKeyState(win32.VK_CONTROL))) & 0x8000) != 0;
+                    if (ctrl_down) {
+                        if (win32.WindowFromPoint(ms.pt)) |target| {
+                            // Adjust the whole top-level window, not the deepest
+                            // child under the cursor.
+                            const root = win32.GetAncestor(target, win32.GA_ROOT);
+                            // High word of mouseData is the signed wheel delta (±120/notch).
+                            const delta: i32 = @as(i16, @bitCast(@as(u16, @truncate(ms.mouseData >> 16))));
+                            adjustOpacity(root, delta);
+                            return 1; // Consume: don't forward the wheel to the target window.
+                        }
                     }
                 }
             },
