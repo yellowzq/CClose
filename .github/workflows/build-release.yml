@@ -1,0 +1,42 @@
+name: Build and Release
+
+on:
+  # Tag push (e.g. `git tag v0.1.0 && git push --tags`) builds and publishes a
+  # GitHub Release with the exe attached.
+  push:
+    tags:
+      - 'v*'
+  # Manual trigger (Actions tab → "Run workflow") builds the current branch and
+  # uploads the exe as an artifact; no Release is created on non-tag refs.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+
+      - name: Build (ReleaseSafe)
+        run: zig build -Doptimize=ReleaseSafe
+
+      - name: Upload exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CClose-exe
+          path: zig-out/bin/CClose.exe
+
+      - name: Publish Release (tag push only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: zig-out/bin/CClose.exe
+          generate_release_notes: true

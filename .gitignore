@@ -1,6 +1,7 @@
 */bin
 .*
 !/.gitignore
+!/.github/
 AGENTS.md
 
 # Trellis workflow data (tasks, journals, spec, scripts) is version-controlled.
@@ -8,3 +9,4 @@ AGENTS.md
 # local via the nested .trellis/.gitignore rules.
 !/.trellis/
 !/.trellis/.gitignore
+/.trellis/tasks
