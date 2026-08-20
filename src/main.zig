@@ -55,7 +55,6 @@ var g_strs: lang_mod.Strings = undefined;
 
 // Pre-converted wide menu strings (arena-allocated)
 var g_ws_suspend: [:0]u16 = undefined;
-var g_ws_resume: [:0]u16 = undefined;
 var g_ws_settings: [:0]u16 = undefined;
 var g_ws_help: [:0]u16 = undefined;
 var g_ws_about: [:0]u16 = undefined;
@@ -88,8 +87,10 @@ fn showContextMenu(hWnd: win32.HWND) void {
     const hMenu = win32.CreatePopupMenu() orelse return;
     defer _ = win32.DestroyMenu(hMenu);
 
-    _ = win32.AppendMenuW(hMenu, win32.MF_STRING, IDM_SUSPEND, if (hooks.isSuspended()) @as(?win32.LPCWSTR, g_ws_resume.ptr) else @as(?win32.LPCWSTR, g_ws_suspend.ptr));
-    _ = win32.AppendMenuW(hMenu, win32.MF_STRING, IDM_AUTOSTART, @as(?win32.LPCWSTR, g_ws_autostart.ptr));
+    // The suspend menu item keeps a single label and a checkmark shows the
+    // current state (checked = temporarily disabled, click again to resume).
+    _ = win32.AppendMenuW(hMenu, win32.MF_STRING | (if (hooks.isSuspended()) win32.MF_CHECKED else 0), IDM_SUSPEND, @as(?win32.LPCWSTR, g_ws_suspend.ptr));
+    _ = win32.AppendMenuW(hMenu, win32.MF_STRING | (if (g_autostart) win32.MF_CHECKED else 0), IDM_AUTOSTART, @as(?win32.LPCWSTR, g_ws_autostart.ptr));
     _ = win32.AppendMenuW(hMenu, win32.MF_STRING, IDM_SETTINGS, @as(?win32.LPCWSTR, g_ws_settings.ptr));
     _ = win32.AppendMenuW(hMenu, win32.MF_SEPARATOR, 0, null);
     _ = win32.AppendMenuW(hMenu, win32.MF_STRING, IDM_HELP, @as(?win32.LPCWSTR, g_ws_help.ptr));
@@ -120,7 +121,6 @@ fn wndProc(hWnd: win32.HWND, message: u32, wParam: win32.WPARAM, lParam: win32.L
             g_autostart = g_config.autostart;
             g_strs = lang_mod.getStrings(lang_mod.Language.detect(), a);
             g_ws_suspend = toWide(a, g_strs.@"suspend") catch unreachable;
-            g_ws_resume = toWide(a, g_strs.@"resume") catch unreachable;
             g_ws_settings = toWide(a, g_strs.settings) catch unreachable;
             g_ws_help = toWide(a, g_strs.help) catch unreachable;
             g_ws_about = toWide(a, g_strs.about) catch unreachable;
