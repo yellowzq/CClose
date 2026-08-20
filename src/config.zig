@@ -47,7 +47,6 @@ pub const Config = struct {
     enable_esc_double_press: bool = true,
     enable_taskbar_right_click: bool = true,
     enable_transparency: bool = true,
-    autostart: bool = true,
     titlebar_exceptions: std.ArrayList([]const u8),
     esc_blacklist: std.ArrayList([]const u8),
 
@@ -73,7 +72,6 @@ pub const Config = struct {
         self.enable_esc_double_press = readBool(ini_path, "General", "EnableEscKeyDoublePress", true);
         self.enable_taskbar_right_click = readBool(ini_path, "General", "EnableTaskbarButtonRightClick", true);
         self.enable_transparency = readBool(ini_path, "General", "EnableTransparency", true);
-        self.autostart = readBool(ini_path, "Autostart", "EnableAutostart", true);
 
         const ex_list = readStr(ini_path, "Advanced", "TitleBarExceptionList", "", a);
         defer a.free(ex_list);
@@ -96,7 +94,6 @@ pub const Config = struct {
         writeBool(ini_path, "General", "EnableEscKeyDoublePress", self.enable_esc_double_press);
         writeBool(ini_path, "General", "EnableTaskbarButtonRightClick", self.enable_taskbar_right_click);
         writeBool(ini_path, "General", "EnableTransparency", self.enable_transparency);
-        writeBool(ini_path, "Autostart", "EnableAutostart", self.autostart);
         writeList(ini_path, "Advanced", "TitleBarExceptionList", self.titlebar_exceptions.items, a);
         writeList(ini_path, "Advanced", "EscHotkeyBlackList", self.esc_blacklist.items, a);
     }
@@ -182,11 +179,13 @@ const KEY_READ: u32 = 0x00020019;
 const REG_SZ: u32 = 1;
 
 pub fn setAutostart(enabled: bool) bool {
+    // Per-user Run key (HKCU): no admin rights needed. HKLM\...\Run requires
+    // elevation, so writing there silently failed for non-elevated processes.
     const run_path = u8ToW("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run") catch return false;
     defer std.heap.page_allocator.free(run_path);
     const name = APP_NAME_W;
     var hkey: w.HKEY = undefined;
-    if (RegOpenKeyExW(w.HKEY_LOCAL_MACHINE, run_path.ptr, 0, KEY_SET_VALUE, &hkey) != 0) return false;
+    if (RegOpenKeyExW(w.HKEY_CURRENT_USER, run_path.ptr, 0, KEY_SET_VALUE, &hkey) != 0) return false;
     defer _ = RegCloseKey(hkey);
     if (enabled) {
         var buf: [1024]u16 = undefined;
@@ -204,7 +203,7 @@ pub fn isAutostartEnabled() bool {
     defer std.heap.page_allocator.free(run_path);
     const name = APP_NAME_W;
     var hkey: w.HKEY = undefined;
-    if (RegOpenKeyExW(w.HKEY_LOCAL_MACHINE, run_path.ptr, 0, KEY_READ, &hkey) != 0) return false;
+    if (RegOpenKeyExW(w.HKEY_CURRENT_USER, run_path.ptr, 0, KEY_READ, &hkey) != 0) return false;
     defer _ = RegCloseKey(hkey);
     var buf: [128]u16 = undefined;
     var size: u32 = @intCast(buf.len * 2);

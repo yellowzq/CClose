@@ -76,11 +76,13 @@ fn toWide(a: std.mem.Allocator, s: []const u8) ![:0]u16 {
 }
 
 fn toggleAutostart() void {
-    g_autostart = !g_autostart;
-    _ = config_mod.setAutostart(g_autostart);
-    // Update config
-    g_config.autostart = g_autostart;
-    _ = g_config.save(std.heap.page_allocator);
+    // Autostart lives in the HKCU Run registry key, not the ini config. Only
+    // flip the menu state when the registry write succeeds, so the checkmark
+    // never claims enabled after a failed write.
+    const next = !g_autostart;
+    if (config_mod.setAutostart(next)) {
+        g_autostart = next;
+    }
 }
 
 fn showContextMenu(hWnd: win32.HWND) void {
@@ -118,7 +120,9 @@ fn wndProc(hWnd: win32.HWND, message: u32, wParam: win32.WPARAM, lParam: win32.L
                 .titlebar_exceptions = .empty,
                 .esc_blacklist = .empty,
             };
-            g_autostart = g_config.autostart;
+            // Autostart state comes from the HKCU Run registry key (the actual
+            // mechanism), so the menu checkmark reflects reality.
+            g_autostart = config_mod.isAutostartEnabled();
             g_strs = lang_mod.getStrings(lang_mod.Language.detect(), a);
             g_ws_suspend = toWide(a, g_strs.@"suspend") catch unreachable;
             g_ws_settings = toWide(a, g_strs.settings) catch unreachable;
