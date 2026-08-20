@@ -58,4 +58,6 @@ zig build
 
 ## 许可与致谢
 
+本项目以 [MIT 许可证](LICENSE) 发布，Copyright (c) 2026 yellowzq。
+
 本项目参考 [https://github.com/chaohershi/cclose](https://github.com/chaohershi/cclose)（Chaohe Shi）进行修改。原版版权信息：Copyright (c) 2018-2020 Chaohe Shi。
