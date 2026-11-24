@@ -2,7 +2,7 @@
 
 CClose 是一款 Windows 窗口管理小工具：通过标题栏鼠标手势、双击 Esc 等快捷操作，快速关闭、最小化、置顶窗口，还可以调整窗口透明度、维护例外列表与黑名单。
 
-本项目使用 **Zig 0.16 + Win32** 重新实现，单个 exe、绿色免安装、普通权限即可运行，自动识别简体中文 / English 界面。
+本项目使用 **Zig 0.17.1 + Win32** 重新实现，单个 exe、绿色免安装、普通权限即可运行，自动识别简体中文 / English 界面。
 
 > 本项目参考并修改自 [Chaohe Shi 的 CClose](https://github.com/chaohershi/cclose)（原版 CClose 1.4.1.0，Copyright (c) 2018-2020 Chaohe Shi）。保留原版的核心交互思路，代码用 Zig 重写，并在此基础上做了调整与补充。
 
@@ -48,10 +48,18 @@ CClose 是一款 Windows 窗口管理小工具：通过标题栏鼠标手势、�
 
 ## 构建
 
-需要 [Zig 0.16.0](https://ziglang.org/download/)。
+需要 [Zig 0.17.1](https://ziglang.org/download/)。
+
+在 Windows 上直接构建：
 
 ```bash
 zig build
+```
+
+在 Linux / macOS 上交叉编译：
+
+```bash
+zig build -Dtarget=x86_64-windows-gnu
 ```
 
 产物位于 `zig-out/bin/CClose.exe`。

@@ -1,6 +1,7 @@
 .{
     .name = .CClose,
     .version = "1.4.1",
+    .minimum_zig_version = "0.17.1",
     .fingerprint = 0x2cec80bcb7cd4559,
     .paths = .{
         "build.zig",
