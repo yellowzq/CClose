@@ -214,6 +214,8 @@ pub const COLOR_INFOBK: i32 = 24;
 pub const COLOR_INFOTEXT: i32 = 23;
 pub const COLOR_WINDOWFRAME: i32 = 6;
 pub const DEFAULT_GUI_FONT: i32 = 17;
+pub const LOGPIXELSX: i32 = 88;
+pub const SPI_GETWORKAREA: u32 = 0x0030;
 pub const TRANSPARENT: i32 = 1;
 pub const DT_CENTER: u32 = 0x0001;
 pub const DT_VCENTER: u32 = 0x0004;
@@ -600,6 +602,13 @@ pub extern "user32" fn GetSystemMetrics(
     nIndex: i32,
 ) callconv(.winapi) i32;
 
+pub extern "user32" fn SystemParametersInfoW(
+    uiAction: u32,
+    uiParam: u32,
+    pvParam: ?*anyopaque,
+    fWinIni: u32,
+) callconv(.winapi) BOOL;
+
 pub extern "user32" fn SetProcessDPIAware() callconv(.winapi) BOOL;
 
 pub extern "user32" fn SetLayeredWindowAttributes(
@@ -653,6 +662,28 @@ pub extern "user32" fn AdjustWindowRectEx(
 
 pub extern "gdi32" fn GetStockObject(
     fnObject: i32,
+) callconv(.winapi) ?HGDIOBJ;
+
+pub extern "gdi32" fn GetDeviceCaps(
+    hdc: HDC,
+    index: i32,
+) callconv(.winapi) i32;
+
+pub extern "gdi32" fn CreateFontW(
+    cHeight: i32,
+    cWidth: i32,
+    cEscapement: i32,
+    cOrientation: i32,
+    cWeight: i32,
+    bItalic: u32,
+    bUnderline: u32,
+    bStrikeOut: u32,
+    iCharSet: u32,
+    iOutPrecision: u32,
+    iClipPrecision: u32,
+    iQuality: u32,
+    iPitchAndFamily: u32,
+    pszFaceName: LPCWSTR,
 ) callconv(.winapi) ?HGDIOBJ;
 
 pub extern "gdi32" fn SelectObject(
