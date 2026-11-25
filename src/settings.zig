@@ -7,6 +7,7 @@ const config_mod = @import("config.zig");
 const lang_mod = @import("lang.zig");
 const win32 = @import("win32.zig");
 const icon = @import("icon.zig");
+const ui = @import("ui.zig");
 
 // =============================================================================
 // Class and control identifiers
@@ -70,6 +71,7 @@ var g_a: std.mem.Allocator = undefined;
 var g_hInstance: win32.HINSTANCE = undefined;
 var g_class_registered: bool = false;
 var g_font: ?win32.HGDIOBJ = null;
+var g_scale: f32 = 1.0;
 
 var g_hchk_middle: win32.HWND = undefined;
 var g_hchk_right: win32.HWND = undefined;
@@ -123,19 +125,25 @@ pub fn show(hInstance: win32.HINSTANCE, cfg: *config_mod.Config, strs: *const la
     g_a = a;
     g_hInstance = hInstance;
     registerClass(hInstance);
-    g_font = win32.GetStockObject(win32.DEFAULT_GUI_FONT);
+    if (g_font == null) {
+        // One process-lifetime UI font/scale pair: the process is system-DPI
+        // aware, so the system DPI cannot change while it runs.
+        g_scale = chooseScale(ui.systemDpi());
+        g_font = ui.font(g_scale) orelse win32.GetStockObject(win32.DEFAULT_GUI_FONT);
+    }
 
     var title_buf: [256]u16 = undefined;
     const title = wbuf(g_strs.advanced_settings_title, &title_buf);
 
-    var rc: win32.RECT = .{ .left = 0, .top = 0, .right = DLG_WIDTH, .bottom = DLG_HEIGHT };
+    var rc: win32.RECT = .{ .left = 0, .top = 0, .right = ui.px(DLG_WIDTH, g_scale), .bottom = ui.px(DLG_HEIGHT, g_scale) };
     _ = win32.AdjustWindowRectEx(&rc, win32.WS_CAPTION | win32.WS_SYSMENU, 0, 0);
     const win_w = rc.right - rc.left;
     const win_h = rc.bottom - rc.top;
-    const scr_w = win32.GetSystemMetrics(win32.SM_CXSCREEN);
-    const scr_h = win32.GetSystemMetrics(win32.SM_CYSCREEN);
-    const x = @divTrunc(scr_w - win_w, 2);
-    const y = @divTrunc(scr_h - win_h, 3);
+    const work = ui.workArea();
+    const avail_w = work.right - work.left;
+    const avail_h = work.bottom - work.top;
+    const x = work.left + @max(0, @divTrunc(avail_w - win_w, 2));
+    const y = work.top + @max(0, @divTrunc(avail_h - win_h, 3));
 
     const dlg = win32.CreateWindowExW(
         0,
@@ -265,10 +273,21 @@ fn createControls(hWnd: win32.HWND) void {
     _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.delete, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 388, 74, 24, ID_DEL_BLACK);
     _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.tab_blacklist, &buf).ptr, base | win32.BS_GROUPBOX, 12, 340, 376, 164, 0);
 
-    // Group 4: window info picker.
-    g_hchk_follow = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.follow_mouse, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 528, 150, 20, ID_CHK_FOLLOW);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add_to_exception, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 180, 528, 95, 22, ID_PICK_EXCEPT);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add_to_blacklist, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 283, 528, 97, 22, ID_PICK_BLACK);
+    // Group 4: window info picker. Size the two buttons to their translated
+    // labels (measured in the dialog font) and right-align them inside the
+    // group so longer captions such as "Add to Exception List" are not clipped;
+    // the Follow Mouse checkbox takes the remaining width.
+    const btn_pad: i32 = 20;
+    const btn_gap: i32 = 6;
+    const row_right: i32 = 380;
+    const w_except = @max(74, ui.design(textWidth(g_strs.add_to_exception), g_scale) + btn_pad);
+    const w_black = @max(74, ui.design(textWidth(g_strs.add_to_blacklist), g_scale) + btn_pad);
+    const x_black = row_right - w_black;
+    const x_except = x_black - btn_gap - w_except;
+    const follow_w = @max(90, x_except - btn_gap - 24);
+    g_hchk_follow = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.follow_mouse, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 528, follow_w, 20, ID_CHK_FOLLOW);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add_to_exception, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, x_except, 528, w_except, 22, ID_PICK_EXCEPT);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add_to_blacklist, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, x_black, 528, w_black, 22, ID_PICK_BLACK);
 
     _ = ctrl(hWnd, &CLASS_STATIC, wbuf(g_strs.field_title, &buf).ptr, base | win32.SS_LEFT, 24, 556, 44, 18, 0);
     g_htxt_title = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL | win32.ES_READONLY, 72, 554, 304, 22, ID_TXT_TITLE);
@@ -285,11 +304,47 @@ fn createControls(hWnd: win32.HWND) void {
     _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.cancel, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 320, 656, 68, 24, ID_CANCEL);
 }
 
-/// Create a child control, apply the dialog font, and return its handle.
+/// Scale the 96-DPI layout for the current system DPI, but cap it so the whole
+/// dialog still fits the work area on small or heavily scaled screens.
+fn chooseScale(dpi: i32) f32 {
+    var scale = ui.scaleFor(dpi);
+    const work = ui.workArea();
+    const avail_w = work.right - work.left;
+    const avail_h = work.bottom - work.top;
+    while (scale > 1.0) {
+        var rc: win32.RECT = .{
+            .left = 0,
+            .top = 0,
+            .right = ui.px(DLG_WIDTH, scale),
+            .bottom = ui.px(DLG_HEIGHT, scale),
+        };
+        _ = win32.AdjustWindowRectEx(&rc, win32.WS_CAPTION | win32.WS_SYSMENU, 0, 0);
+        if (rc.right - rc.left <= avail_w and rc.bottom - rc.top <= avail_h) break;
+        scale -= 0.05;
+    }
+    return scale;
+}
+
+/// Create a child control (coordinates in 96-DPI design units, converted to
+/// physical pixels with the current scale), apply the dialog font, and return
+/// its handle.
 fn ctrl(parent: win32.HWND, class: win32.LPCWSTR, text: ?win32.LPCWSTR, style: u32, x: i32, y: i32, w: i32, h: i32, id: usize) win32.HWND {
     const menu: ?win32.HMENU = if (id == 0) null else @as(?win32.HMENU, @ptrFromInt(id));
     const wtext: win32.LPCWSTR = text orelse &EMPTY_WIDE;
-    const hw = win32.CreateWindowExW(0, class, wtext, style, x, y, w, h, parent, menu, g_hInstance, null) orelse return undefined;
+    const hw = win32.CreateWindowExW(
+        0,
+        class,
+        wtext,
+        style,
+        ui.px(x, g_scale),
+        ui.px(y, g_scale),
+        ui.px(w, g_scale),
+        ui.px(h, g_scale),
+        parent,
+        menu,
+        g_hInstance,
+        null,
+    ) orelse return undefined;
     if (g_font) |f| {
         _ = win32.SendMessageW(hw, win32.WM_SETFONT, @intFromPtr(f), 1);
     }
@@ -456,4 +511,20 @@ fn wbuf(s: []const u8, buf: []u16) [:0]u16 {
     };
     buf[n] = 0;
     return buf[0..n :0];
+}
+
+/// Physical pixel width of `s` in the dialog font, used to size buttons to
+/// their translated labels (fixed widths clip longer captions like the English
+/// "Add to Exception List"). Converted to design units by the caller.
+fn textWidth(s: []const u8) i32 {
+    const font = g_font orelse return 0;
+    const hdc = win32.GetDC(null) orelse return 0;
+    defer _ = win32.ReleaseDC(null, hdc);
+    const prev = win32.SelectObject(hdc, font);
+    defer _ = win32.SelectObject(hdc, prev);
+    var buf: [512]u16 = undefined;
+    const w = wbuf(s, &buf);
+    var sz: win32.SIZE = .{ .cx = 0, .cy = 0 };
+    if (win32.GetTextExtentPoint32W(hdc, w.ptr, @intCast(w.len), &sz) == 0) return 0;
+    return sz.cx;
 }

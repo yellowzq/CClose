@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const win32 = @import("win32.zig");
+const ui = @import("ui.zig");
 
 // =============================================================================
 // Tooltip constants
@@ -30,6 +31,8 @@ var g_tip_text: ?win32.LPCWSTR = null;
 var g_on_text: ?[:0]const u16 = null;
 var g_off_text: ?[:0]const u16 = null;
 var g_tip_visible: bool = false;
+var g_scale: f32 = 1.0;
+var g_font: ?win32.HGDIOBJ = null;
 
 // =============================================================================
 // Public API
@@ -41,6 +44,8 @@ var g_tip_visible: bool = false;
 pub fn init(hInstance: win32.HINSTANCE, on_text: [:0]const u16, off_text: [:0]const u16) bool {
     g_on_text = on_text;
     g_off_text = off_text;
+    g_scale = ui.scaleFor(ui.systemDpi());
+    g_font = ui.font(g_scale);
 
     var wc: win32.WNDCLASSEXW = undefined;
     wc.cbSize = @sizeOf(win32.WNDCLASSEXW);
@@ -112,20 +117,22 @@ fn doShow(text: [:0]const u16) void {
     var sz: win32.SIZE = .{ .cx = 120, .cy = 20 };
     if (win32.GetDC(null)) |hdc| {
         defer _ = win32.ReleaseDC(null, hdc);
-        if (win32.GetStockObject(win32.DEFAULT_GUI_FONT)) |hFont| {
+        if (g_font orelse win32.GetStockObject(win32.DEFAULT_GUI_FONT)) |hFont| {
             const prev = win32.SelectObject(hdc, hFont);
             _ = win32.GetTextExtentPoint32W(hdc, text.ptr, @intCast(text.len), &sz);
             _ = win32.SelectObject(hdc, prev);
         }
     }
-    const w = sz.cx + TIP_PAD_X * 2;
-    const h = sz.cy + TIP_PAD_Y * 2;
+    const pad_x = ui.px(TIP_PAD_X, g_scale);
+    const pad_y = ui.px(TIP_PAD_Y, g_scale);
+    const w = sz.cx + pad_x * 2;
+    const h = sz.cy + pad_y * 2;
     var pt: win32.POINT = undefined;
     _ = win32.GetCursorPos(&pt);
     const scr_w = win32.GetSystemMetrics(win32.SM_CXSCREEN);
     const scr_h = win32.GetSystemMetrics(win32.SM_CYSCREEN);
-    const x = std.math.clamp(pt.x + TIP_OFFSET_X, 0, scr_w - w);
-    const y = std.math.clamp(pt.y + TIP_OFFSET_Y, 0, scr_h - h);
+    const x = std.math.clamp(pt.x + ui.px(TIP_OFFSET_X, g_scale), 0, @max(0, scr_w - w));
+    const y = std.math.clamp(pt.y + ui.px(TIP_OFFSET_Y, g_scale), 0, @max(0, scr_h - h));
     _ = win32.SetWindowPos(tip, win32.HWND_TOPMOST, x, y, w, h, win32.SWP_NOACTIVATE | win32.SWP_SHOWWINDOW);
     g_tip_visible = true;
     _ = win32.InvalidateRect(tip, null, @as(win32.BOOL, 1));
@@ -145,7 +152,7 @@ fn tipWndProc(hWnd: win32.HWND, message: u32, wParam: win32.WPARAM, lParam: win3
             if (g_tip_text) |text| {
                 _ = win32.SetBkMode(hdc, win32.TRANSPARENT);
                 _ = win32.SetTextColor(hdc, win32.GetSysColor(win32.COLOR_INFOTEXT));
-                if (win32.GetStockObject(win32.DEFAULT_GUI_FONT)) |hFont| {
+                if (g_font orelse win32.GetStockObject(win32.DEFAULT_GUI_FONT)) |hFont| {
                     _ = win32.SelectObject(hdc, hFont);
                 }
                 _ = win32.DrawTextW(hdc, text, -1, &rc, win32.DT_CENTER | win32.DT_VCENTER | win32.DT_SINGLELINE);
