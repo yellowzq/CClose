@@ -8,6 +8,7 @@
 
 pub const HWND = *anyopaque;
 pub const HINSTANCE = *anyopaque;
+pub const HMONITOR = *anyopaque;
 pub const HICON = *anyopaque;
 pub const HMENU = *anyopaque;
 pub const HMODULE = *anyopaque;
@@ -40,6 +41,13 @@ pub const RECT = extern struct {
     top: LONG,
     right: LONG,
     bottom: LONG,
+};
+
+pub const MONITORINFO = extern struct {
+    cbSize: u32,
+    rcMonitor: RECT,
+    rcWork: RECT,
+    dwFlags: u32,
 };
 
 pub const SIZE = extern struct {
@@ -209,6 +217,11 @@ pub const IDI_APPLICATION: DWORD = 32512;
 pub const SW_HIDE: i32 = 0;
 pub const SM_CXSCREEN: i32 = 0;
 pub const SM_CYSCREEN: i32 = 1;
+pub const SM_XVIRTUALSCREEN: i32 = 76;
+pub const SM_YVIRTUALSCREEN: i32 = 77;
+pub const SM_CXVIRTUALSCREEN: i32 = 78;
+pub const SM_CYVIRTUALSCREEN: i32 = 79;
+pub const MONITOR_DEFAULTTONEAREST: u32 = 2;
 pub const COLOR_BTNFACE: i32 = 15;
 pub const COLOR_INFOBK: i32 = 24;
 pub const COLOR_INFOTEXT: i32 = 23;
@@ -601,6 +614,26 @@ pub extern "user32" fn DrawTextW(
 pub extern "user32" fn GetSystemMetrics(
     nIndex: i32,
 ) callconv(.winapi) i32;
+
+pub extern "user32" fn MonitorFromPoint(
+    pt: POINT,
+    dwFlags: u32,
+) callconv(.winapi) ?HMONITOR;
+
+pub extern "user32" fn MonitorFromWindow(
+    hwnd: HWND,
+    dwFlags: u32,
+) callconv(.winapi) ?HMONITOR;
+
+pub extern "user32" fn GetMonitorInfoW(
+    hMonitor: HMONITOR,
+    lpmi: *MONITORINFO,
+) callconv(.winapi) BOOL;
+
+pub extern "user32" fn GetWindowRect(
+    hWnd: HWND,
+    lpRect: *RECT,
+) callconv(.winapi) BOOL;
 
 pub extern "user32" fn SystemParametersInfoW(
     uiAction: u32,
