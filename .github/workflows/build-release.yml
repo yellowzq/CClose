@@ -20,6 +20,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+              echo "release tag must look like vX.Y.Z"; exit 1; }
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=0.0.0-dev+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify version sources
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          v=$(tr -d '\r\n' < VERSION)
+          test "$v" = "${{ steps.version.outputs.value }}"
+          grep -q "\"FileVersion\", \"$v\"" assets/app.rc
+          IFS=. read -r major minor patch <<< "$v"
+          grep -q "FILEVERSION $major,$minor,$patch,0" assets/app.rc
+          grep -q "PRODUCTVERSION $major,$minor,$patch,0" assets/app.rc
+
       - name: Install Zig
         # v2 supports Zig 0.17.1; v1.x mirrors return 404 for it.
         uses: mlugg/setup-zig@v2
@@ -27,7 +50,7 @@ jobs:
           version: 0.17.1
 
       - name: Build (ReleaseSafe)
-        run: zig build -Doptimize=ReleaseSafe
+        run: zig build -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.value }}
 
       - name: Upload exe artifact
         uses: actions/upload-artifact@v4
