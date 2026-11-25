@@ -52,7 +52,7 @@ jobs:
           version: 0.17.1
 
       - name: Build (ReleaseSafe)
-        run: zig build -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.value }}
+        run: zig build -Doptimize=ReleaseSafe "-Dversion=${{ steps.version.outputs.value }}"
 
       - name: Upload exe artifact
         uses: actions/upload-artifact@v4
