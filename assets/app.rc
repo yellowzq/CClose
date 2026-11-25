@@ -10,8 +10,8 @@
 // VERSIONINFO block helps push those heuristics below their threshold.
 // Keep the version here in sync with the GitHub release tag.
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 0,1,2,0
-PRODUCTVERSION 0,1,2,0
+FILEVERSION 0,1,3,0
+PRODUCTVERSION 0,1,3,0
 FILEFLAGSMASK 0x3f
 FILEFLAGS 0x0
 FILEOS 0x40004
@@ -24,12 +24,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "yellowzq"
             VALUE "FileDescription", "CClose - Windows window management tool"
-            VALUE "FileVersion", "0.1.2-beta"
+            VALUE "FileVersion", "0.1.3-beta"
             VALUE "InternalName", "CClose"
             VALUE "LegalCopyright", "Copyright (c) 2026 yellowzq"
             VALUE "OriginalFilename", "CClose.exe"
             VALUE "ProductName", "CClose"
-            VALUE "ProductVersion", "0.1.2-beta"
+            VALUE "ProductVersion", "0.1.3-beta"
         END
     END
     BLOCK "VarFileInfo"
