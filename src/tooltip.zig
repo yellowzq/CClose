@@ -81,11 +81,13 @@ pub fn init(hInstance: win32.HINSTANCE, on_text: [:0]const u16, off_text: [:0]co
     return true;
 }
 
-/// Show the toast for the new always-on-top state near the cursor.
-pub fn showTopmost(is_on: bool) void {
+/// Show the toast for the new always-on-top state. `target` selects the monitor
+/// (the window whose state changed) and anchors the toast if the cursor is not
+/// on that monitor.
+pub fn showTopmost(is_on: bool, target: ?win32.HWND) void {
     const text = if (is_on) g_on_text else g_off_text;
     const t = text orelse return;
-    doShow(t);
+    doShow(t, target);
 }
 
 /// Hide the toast (used by the auto-hide timer and on shutdown).
@@ -110,7 +112,7 @@ pub fn destroy() void {
 // Internals
 // =============================================================================
 
-fn doShow(text: [:0]const u16) void {
+fn doShow(text: [:0]const u16, target: ?win32.HWND) void {
     const tip = g_hTip orelse return;
     g_tip_text = text.ptr;
     // Measure the text with the same font that paints it.
@@ -129,14 +131,80 @@ fn doShow(text: [:0]const u16) void {
     const h = sz.cy + pad_y * 2;
     var pt: win32.POINT = undefined;
     _ = win32.GetCursorPos(&pt);
-    const scr_w = win32.GetSystemMetrics(win32.SM_CXSCREEN);
-    const scr_h = win32.GetSystemMetrics(win32.SM_CYSCREEN);
-    const x = std.math.clamp(pt.x + ui.px(TIP_OFFSET_X, g_scale), 0, @max(0, scr_w - w));
-    const y = std.math.clamp(pt.y + ui.px(TIP_OFFSET_Y, g_scale), 0, @max(0, scr_h - h));
-    _ = win32.SetWindowPos(tip, win32.HWND_TOPMOST, x, y, w, h, win32.SWP_NOACTIVATE | win32.SWP_SHOWWINDOW);
+    const work = workAreaFor(target, pt);
+    var target_rect: ?win32.RECT = null;
+    if (target) |hWnd| {
+        var wr: win32.RECT = undefined;
+        if (win32.GetWindowRect(hWnd, &wr) != 0) target_rect = wr;
+    }
+    const pos = placeToast(
+        pt,
+        .{ .cx = w, .cy = h },
+        work,
+        target_rect,
+        ui.px(TIP_OFFSET_X, g_scale),
+        ui.px(TIP_OFFSET_Y, g_scale),
+    );
+    _ = win32.SetWindowPos(tip, win32.HWND_TOPMOST, pos.x, pos.y, w, h, win32.SWP_NOACTIVATE | win32.SWP_SHOWWINDOW);
     g_tip_visible = true;
     _ = win32.InvalidateRect(tip, null, @as(win32.BOOL, 1));
     _ = win32.SetTimer(tip, TOOLTIP_TIMER_ID, TOOLTIP_SHOW_MS, null);
+}
+
+/// Work area (monitor rect minus taskbars) of the monitor containing the target
+/// window, or of the monitor under the cursor when there is no target window.
+/// Falls back to the whole virtual desktop if monitor queries fail.
+fn workAreaFor(target: ?win32.HWND, cursor: win32.POINT) win32.RECT {
+    var monitor: ?win32.HMONITOR = null;
+    if (target) |hWnd| monitor = win32.MonitorFromWindow(hWnd, win32.MONITOR_DEFAULTTONEAREST);
+    if (monitor == null) monitor = win32.MonitorFromPoint(cursor, win32.MONITOR_DEFAULTTONEAREST);
+    if (monitor) |m| {
+        var mi: win32.MONITORINFO = .{
+            .cbSize = @sizeOf(win32.MONITORINFO),
+            .rcMonitor = undefined,
+            .rcWork = undefined,
+            .dwFlags = 0,
+        };
+        if (win32.GetMonitorInfoW(m, &mi) != 0) return mi.rcWork;
+    }
+    const left = win32.GetSystemMetrics(win32.SM_XVIRTUALSCREEN);
+    const top = win32.GetSystemMetrics(win32.SM_YVIRTUALSCREEN);
+    return .{
+        .left = left,
+        .top = top,
+        .right = left + win32.GetSystemMetrics(win32.SM_CXVIRTUALSCREEN),
+        .bottom = top + win32.GetSystemMetrics(win32.SM_CYVIRTUALSCREEN),
+    };
+}
+
+/// Place the toast near the cursor, clamped to `work`. If the cursor is not on
+/// the target window's monitor (window on a secondary screen, or a stray move),
+/// anchor it above the target window and center it horizontally instead.
+fn placeToast(
+    cursor: win32.POINT,
+    size: win32.SIZE,
+    work: win32.RECT,
+    target_rect: ?win32.RECT,
+    offset_x: i32,
+    offset_y: i32,
+) win32.POINT {
+    const max_x = @max(work.left, work.right - size.cx);
+    const max_y = @max(work.top, work.bottom - size.cy);
+    const cursor_on_work = cursor.x >= work.left and cursor.x < work.right and
+        cursor.y >= work.top and cursor.y < work.bottom;
+    var x: i32 = cursor.x + offset_x;
+    var y: i32 = cursor.y + offset_y;
+    if (!cursor_on_work) {
+        if (target_rect) |r| {
+            x = r.left + @divTrunc((r.right - r.left) - size.cx, 2);
+            const above = r.top - size.cy - offset_y;
+            y = if (above >= work.top) above else work.top + offset_y;
+        }
+    }
+    return .{
+        .x = std.math.clamp(x, work.left, max_x),
+        .y = std.math.clamp(y, work.top, max_y),
+    };
 }
 
 fn tipWndProc(hWnd: win32.HWND, message: u32, wParam: win32.WPARAM, lParam: win32.LPARAM) callconv(.winapi) win32.LRESULT {

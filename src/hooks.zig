@@ -148,7 +148,7 @@ fn handleHoldTick(hWnd: win32.HWND) void {
             win32.SWP_NOMOVE | win32.SWP_NOSIZE | win32.SWP_NOACTIVATE | win32.SWP_FRAMECHANGED,
         );
         // Notify the user of the new always-on-top state near the cursor.
-        tooltip.showTopmost(!is_topmost);
+        tooltip.showTopmost(!is_topmost, g_hold_target);
         g_hold_active = false;
         stopHoldTimer(hWnd);
     }
