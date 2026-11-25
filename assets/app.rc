@@ -24,12 +24,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "yellowzq"
             VALUE "FileDescription", "CClose - Windows window management tool"
-            VALUE "FileVersion", "0.1.2"
+            VALUE "FileVersion", "0.1.2-beta"
             VALUE "InternalName", "CClose"
             VALUE "LegalCopyright", "Copyright (c) 2026 yellowzq"
             VALUE "OriginalFilename", "CClose.exe"
             VALUE "ProductName", "CClose"
-            VALUE "ProductVersion", "0.1.2"
+            VALUE "ProductVersion", "0.1.2-beta"
         END
     END
     BLOCK "VarFileInfo"
