@@ -25,8 +25,8 @@ jobs:
         shell: bash
         run: |
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-              echo "release tag must look like vX.Y.Z"; exit 1; }
+            [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || {
+              echo "release tag '$GITHUB_REF_NAME' must look like vX.Y.Z or vX.Y.Z-suffix"; exit 1; }
             echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           else
             echo "value=0.0.0-dev+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
@@ -36,10 +36,12 @@ jobs:
         if: github.ref_type == 'tag'
         shell: bash
         run: |
-          v=$(tr -d '\r\n' < VERSION)
+          v=$(tr -d '\r\n' < src/VERSION)
           test "$v" = "${{ steps.version.outputs.value }}"
           grep -q "\"FileVersion\", \"$v\"" assets/app.rc
-          IFS=. read -r major minor patch <<< "$v"
+          grep -q "\"ProductVersion\", \"$v\"" assets/app.rc
+          base=${v%%-*}
+          IFS=. read -r major minor patch <<< "$base"
           grep -q "FILEVERSION $major,$minor,$patch,0" assets/app.rc
           grep -q "PRODUCTVERSION $major,$minor,$patch,0" assets/app.rc
 
@@ -64,3 +66,4 @@ jobs:
         with:
           files: zig-out/bin/CClose.exe
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
