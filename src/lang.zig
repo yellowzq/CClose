@@ -1,6 +1,14 @@
 const std = @import("std");
+const build_options = @import("build_options");
 
 extern "kernel32" fn GetUserDefaultUILanguage() u16;
+
+/// Generated at compile time from VERSION / -Dversion so the About dialog
+/// always matches the release tag.
+const about_msg = std.fmt.comptimePrint(
+    "CClose zig v{s}\n\nCopyright(c)2026 yellowzq",
+    .{build_options.version},
+);
 
 pub const Language = enum {
     English,
@@ -107,7 +115,7 @@ pub fn getStrings(lang: Language, a: std.mem.Allocator) Strings {
                 "",
                 "[3] Hold right click for a normal right click.",
             }),
-            .about_msg = "CClose zig v0.1.0\n\nCopyright(c)2026 yellowzq",
+            .about_msg = about_msg,
             .get_pro = "Upgrade to Pro",
             .get_pro_msg = join(a, &.{
                 "Upgrade to CClose Pro to unlock extra features, including:",
@@ -173,7 +181,7 @@ pub fn getStrings(lang: Language, a: std.mem.Allocator) Strings {
                 "",
                 "[3] 长按右键可进行正常的右键单击。",
             }),
-            .about_msg = "CClose zig v0.1.0\n\nCopyright(c)2026 yellowzq",
+            .about_msg = about_msg,
             .get_pro = "升级到 Pro",
             .get_pro_msg = join(a, &.{
                 "升级到 CClose Pro 以解锁额外功能，包括：",

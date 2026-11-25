@@ -62,6 +62,8 @@ zig build
 zig build -Dtarget=x86_64-windows-gnu
 ```
 
+版本号默认读取仓库根目录的 `VERSION`，可用 `-Dversion=0.1.2` 覆盖。发布 CI 会用 tag 覆盖版本号，并校验 `VERSION` 与 `assets/app.rc` 是否一致。
+
 产物位于 `zig-out/bin/CClose.exe`。
 
 ## 许可与致谢
