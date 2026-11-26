@@ -33,6 +33,7 @@ var g_off_text: ?[:0]const u16 = null;
 var g_tip_visible: bool = false;
 var g_scale: f32 = 1.0;
 var g_font: ?win32.HGDIOBJ = null;
+var g_font_dpi: i32 = 0;
 
 // =============================================================================
 // Public API
@@ -44,8 +45,6 @@ var g_font: ?win32.HGDIOBJ = null;
 pub fn init(hInstance: win32.HINSTANCE, on_text: [:0]const u16, off_text: [:0]const u16) bool {
     g_on_text = on_text;
     g_off_text = off_text;
-    g_scale = ui.scaleFor(ui.systemDpi());
-    g_font = ui.font(g_scale);
 
     var wc: win32.WNDCLASSEXW = undefined;
     wc.cbSize = @sizeOf(win32.WNDCLASSEXW);
@@ -115,6 +114,15 @@ pub fn destroy() void {
 fn doShow(text: [:0]const u16, target: ?win32.HWND) void {
     const tip = g_hTip orelse return;
     g_tip_text = text.ptr;
+    var pt: win32.POINT = undefined;
+    _ = win32.GetCursorPos(&pt);
+    // Scale to the monitor being annotated, not the system/primary DPI.
+    const target_dpi: i32 = if (target) |hWnd| ui.dpiForWindow(hWnd) else ui.dpiAtPoint(pt);
+    g_scale = ui.scaleFor(target_dpi);
+    if (g_font == null or g_font_dpi != target_dpi) {
+        g_font = ui.font(g_scale);
+        g_font_dpi = target_dpi;
+    }
     // Measure the text with the same font that paints it.
     var sz: win32.SIZE = .{ .cx = 120, .cy = 20 };
     if (win32.GetDC(null)) |hdc| {
@@ -129,8 +137,6 @@ fn doShow(text: [:0]const u16, target: ?win32.HWND) void {
     const pad_y = ui.px(TIP_PAD_Y, g_scale);
     const w = sz.cx + pad_x * 2;
     const h = sz.cy + pad_y * 2;
-    var pt: win32.POINT = undefined;
-    _ = win32.GetCursorPos(&pt);
     const work = workAreaFor(target, pt);
     var target_rect: ?win32.RECT = null;
     if (target) |hWnd| {

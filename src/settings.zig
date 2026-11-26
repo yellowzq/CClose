@@ -58,7 +58,7 @@ const FOLLOW_TIMER_MS: u32 = 80;
 
 // Dialog client size (layout coordinates are DPI-aware pixels).
 const DLG_WIDTH: i32 = 400;
-const DLG_HEIGHT: i32 = 688;
+const DLG_HEIGHT: i32 = 624;
 
 // =============================================================================
 // Module state
@@ -72,6 +72,17 @@ var g_hInstance: win32.HINSTANCE = undefined;
 var g_class_registered: bool = false;
 var g_font: ?win32.HGDIOBJ = null;
 var g_scale: f32 = 1.0;
+var g_font_scale: f32 = 0.0;
+
+const LayoutEntry = struct {
+    hwnd: win32.HWND,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+};
+var g_layout: [64]LayoutEntry = undefined;
+var g_layout_len: usize = 0;
 
 var g_hchk_middle: win32.HWND = undefined;
 var g_hchk_right: win32.HWND = undefined;
@@ -129,11 +140,13 @@ pub fn show(hInstance: win32.HINSTANCE, cfg: *config_mod.Config, strs: *const la
     g_a = a;
     g_hInstance = hInstance;
     registerClass(hInstance);
-    if (g_font == null) {
-        // One process-lifetime UI font/scale pair: the process is system-DPI
-        // aware, so the system DPI cannot change while it runs.
-        g_scale = chooseScale(ui.systemDpi());
+    var cursor: win32.POINT = undefined;
+    _ = win32.GetCursorPos(&cursor);
+    const work = ui.workAreaAt(cursor);
+    g_scale = chooseScale(ui.dpiAtPoint(cursor), work);
+    if (g_font == null or g_font_scale != g_scale) {
         g_font = ui.font(g_scale) orelse win32.GetStockObject(win32.DEFAULT_GUI_FONT);
+        g_font_scale = g_scale;
     }
 
     var title_buf: [256]u16 = undefined;
@@ -143,11 +156,8 @@ pub fn show(hInstance: win32.HINSTANCE, cfg: *config_mod.Config, strs: *const la
     _ = win32.AdjustWindowRectEx(&rc, win32.WS_CAPTION | win32.WS_SYSMENU, 0, 0);
     const win_w = rc.right - rc.left;
     const win_h = rc.bottom - rc.top;
-    const work = ui.workArea();
-    const avail_w = work.right - work.left;
-    const avail_h = work.bottom - work.top;
-    const x = work.left + @max(0, @divTrunc(avail_w - win_w, 2));
-    const y = work.top + @max(0, @divTrunc(avail_h - win_h, 3));
+    const x = work.left + @max(0, @divTrunc((work.right - work.left) - win_w, 2));
+    const y = work.top + @max(0, @divTrunc((work.bottom - work.top) - win_h, 3));
 
     const dlg = win32.CreateWindowExW(
         0,
@@ -201,8 +211,48 @@ fn registerClass(hInstance: win32.HINSTANCE) void {
 fn settingsWndProc(hWnd: win32.HWND, message: u32, wParam: win32.WPARAM, lParam: win32.LPARAM) callconv(.winapi) win32.LRESULT {
     switch (message) {
         win32.WM_CREATE => {
+            g_layout_len = 0;
             createControls(hWnd);
             initControls();
+        },
+        win32.WM_DPICHANGED => {
+            const new_dpi: i32 = @intCast(wParam & 0xFFFF);
+            const work = ui.workAreaForWindow(hWnd);
+            g_scale = chooseScale(new_dpi, work);
+            const new_font = ui.font(g_scale) orelse win32.GetStockObject(win32.DEFAULT_GUI_FONT);
+            g_font = new_font;
+            g_font_scale = g_scale;
+            var i: usize = 0;
+            while (i < g_layout_len) : (i += 1) {
+                const e = g_layout[i];
+                if (new_font) |f| _ = win32.SendMessageW(e.hwnd, win32.WM_SETFONT, @intFromPtr(f), 1);
+                _ = win32.SetWindowPos(
+                    e.hwnd,
+                    null,
+                    ui.px(e.x, g_scale),
+                    ui.px(e.y, g_scale),
+                    ui.px(e.w, g_scale),
+                    ui.px(e.h, g_scale),
+                    win32.SWP_NOZORDER | win32.SWP_NOACTIVATE,
+                );
+            }
+            var rc: win32.RECT = .{ .left = 0, .top = 0, .right = ui.px(DLG_WIDTH, g_scale), .bottom = ui.px(DLG_HEIGHT, g_scale) };
+            _ = win32.AdjustWindowRectEx(&rc, win32.WS_CAPTION | win32.WS_SYSMENU, 0, 0);
+            const win_w = rc.right - rc.left;
+            const win_h = rc.bottom - rc.top;
+            const max_x = @max(work.left, work.right - win_w);
+            const max_y = @max(work.top, work.bottom - win_h);
+            var x: i32 = work.left;
+            var y: i32 = work.top;
+            if (lParam != 0) {
+                const suggested: *const win32.RECT = @ptrCast(@alignCast(@as(*const anyopaque, @ptrFromInt(@as(usize, @bitCast(lParam))))));
+                x = suggested.left;
+                y = suggested.top;
+            }
+            x = std.math.clamp(x, work.left, max_x);
+            y = std.math.clamp(y, work.top, max_y);
+            _ = win32.SetWindowPos(hWnd, null, x, y, win_w, win_h, win32.SWP_NOZORDER | win32.SWP_NOACTIVATE);
+            return 0;
         },
         win32.WM_COMMAND => {
             const id = wParam & 0xFFFF;
@@ -252,11 +302,11 @@ fn createControls(hWnd: win32.HWND) void {
     const base = win32.WS_CHILD | win32.WS_VISIBLE | win32.WS_CLIPSIBLINGS;
 
     // Group 1: feature switches.
-    g_hchk_middle = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_titlebar_middle_click, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 30, 360, 20, ID_EN_MIDDLE);
-    g_hchk_right = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_titlebar_right_click, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 55, 360, 20, ID_EN_RIGHT);
-    g_hchk_hold = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_titlebar_hold_left_click, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 80, 360, 20, ID_EN_HOLD);
-    g_hchk_esc = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_esc_double_press, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 105, 360, 20, ID_EN_ESC);
-    g_hchk_trans = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.settings_enable_transparency, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 130, 360, 20, ID_EN_TRANSPARENCY);
+    g_hchk_middle = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_titlebar_middle_click, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 28, 360, 20, ID_EN_MIDDLE);
+    g_hchk_right = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_titlebar_right_click, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 50, 360, 20, ID_EN_RIGHT);
+    g_hchk_hold = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_titlebar_hold_left_click, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 72, 360, 20, ID_EN_HOLD);
+    g_hchk_esc = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.menu_esc_double_press, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 94, 360, 20, ID_EN_ESC);
+    g_hchk_trans = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.settings_enable_transparency, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 116, 360, 20, ID_EN_TRANSPARENCY);
     // Group boxes are created after their contents: child windows are placed at
     // the bottom of the sibling z-order when created, so a group box created
     // first would sit ON TOP of its contents and swallow every click aimed at
@@ -266,18 +316,18 @@ fn createControls(hWnd: win32.HWND) void {
     _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.settings_features, &buf).ptr, base | win32.BS_GROUPBOX, 12, 10, 376, 150, 0);
 
     // Group 2: title-bar exception list (work area).
-    g_hlb_except = ctrl(hWnd, &CLASS_LISTBOX, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.WS_VSCROLL | win32.LBS_NOTIFY, 24, 186, 270, 86, ID_LB_EXCEPT);
-    g_hedit_except = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL, 24, 278, 270, 24, ID_EDIT_EXCEPT);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 186, 74, 24, ID_ADD_EXCEPT);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.delete, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 216, 74, 24, ID_DEL_EXCEPT);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.tab_exception_list, &buf).ptr, base | win32.BS_GROUPBOX, 12, 168, 376, 164, 0);
+    g_hlb_except = ctrl(hWnd, &CLASS_LISTBOX, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.WS_VSCROLL | win32.LBS_NOTIFY, 24, 174, 270, 86, ID_LB_EXCEPT);
+    g_hedit_except = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL, 24, 266, 270, 22, ID_EDIT_EXCEPT);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 174, 74, 24, ID_ADD_EXCEPT);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.delete, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 202, 74, 24, ID_DEL_EXCEPT);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.tab_exception_list, &buf).ptr, base | win32.BS_GROUPBOX, 12, 158, 376, 138, 0);
 
     // Group 3: Esc hotkey blacklist.
-    g_hlb_black = ctrl(hWnd, &CLASS_LISTBOX, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.WS_VSCROLL | win32.LBS_NOTIFY, 24, 358, 270, 86, ID_LB_BLACK);
-    g_hedit_black = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL, 24, 450, 270, 24, ID_EDIT_BLACK);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 358, 74, 24, ID_ADD_BLACK);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.delete, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 388, 74, 24, ID_DEL_BLACK);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.tab_blacklist, &buf).ptr, base | win32.BS_GROUPBOX, 12, 340, 376, 164, 0);
+    g_hlb_black = ctrl(hWnd, &CLASS_LISTBOX, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.WS_VSCROLL | win32.LBS_NOTIFY, 24, 320, 270, 86, ID_LB_BLACK);
+    g_hedit_black = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL, 24, 412, 270, 22, ID_EDIT_BLACK);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 320, 74, 24, ID_ADD_BLACK);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.delete, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 302, 348, 74, 24, ID_DEL_BLACK);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.tab_blacklist, &buf).ptr, base | win32.BS_GROUPBOX, 12, 304, 376, 138, 0);
 
     // Group 4: window info picker. Size the two buttons to their translated
     // labels (measured in the dialog font) and right-align them inside the
@@ -291,30 +341,29 @@ fn createControls(hWnd: win32.HWND) void {
     const x_black = row_right - w_black;
     const x_except = x_black - btn_gap - w_except;
     const follow_w = @max(90, x_except - btn_gap - 24);
-    g_hchk_follow = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.follow_mouse, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 528, follow_w, 20, ID_CHK_FOLLOW);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add_to_exception, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, x_except, 528, w_except, 22, ID_PICK_EXCEPT);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add_to_blacklist, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, x_black, 528, w_black, 22, ID_PICK_BLACK);
+    g_hchk_follow = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.follow_mouse, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_AUTOCHECKBOX, 24, 462, follow_w, 20, ID_CHK_FOLLOW);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add_to_exception, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, x_except, 462, w_except, 22, ID_PICK_EXCEPT);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.add_to_blacklist, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, x_black, 462, w_black, 22, ID_PICK_BLACK);
 
-    _ = ctrl(hWnd, &CLASS_STATIC, wbuf(g_strs.field_title, &buf).ptr, base | win32.SS_LEFT, 24, 556, 44, 18, 0);
-    g_htxt_title = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL | win32.ES_READONLY, 72, 554, 304, 22, ID_TXT_TITLE);
-    _ = ctrl(hWnd, &CLASS_STATIC, wbuf(g_strs.field_class, &buf).ptr, base | win32.SS_LEFT, 24, 580, 44, 18, 0);
-    g_htxt_class = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL | win32.ES_READONLY, 72, 578, 304, 22, ID_TXT_CLASS);
-    _ = ctrl(hWnd, &CLASS_STATIC, wbuf(g_strs.field_exe, &buf).ptr, base | win32.SS_LEFT, 24, 604, 44, 18, 0);
-    g_htxt_exe = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL | win32.ES_READONLY, 72, 602, 304, 22, ID_TXT_EXE);
-    _ = ctrl(hWnd, &CLASS_STATIC, wbuf(g_strs.field_pid, &buf).ptr, base | win32.SS_LEFT, 24, 628, 44, 18, 0);
-    g_htxt_pid = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL | win32.ES_READONLY, 72, 626, 304, 22, ID_TXT_PID);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.window_info, &buf).ptr, base | win32.BS_GROUPBOX, 12, 512, 376, 138, 0);
+    _ = ctrl(hWnd, &CLASS_STATIC, wbuf(g_strs.field_title, &buf).ptr, base | win32.SS_LEFT, 24, 490, 44, 18, 0);
+    g_htxt_title = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL | win32.ES_READONLY, 72, 488, 304, 22, ID_TXT_TITLE);
+    _ = ctrl(hWnd, &CLASS_STATIC, wbuf(g_strs.field_class, &buf).ptr, base | win32.SS_LEFT, 24, 514, 44, 18, 0);
+    g_htxt_class = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL | win32.ES_READONLY, 72, 512, 304, 22, ID_TXT_CLASS);
+    _ = ctrl(hWnd, &CLASS_STATIC, wbuf(g_strs.field_exe, &buf).ptr, base | win32.SS_LEFT, 24, 538, 44, 18, 0);
+    g_htxt_exe = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL | win32.ES_READONLY, 72, 536, 304, 22, ID_TXT_EXE);
+    _ = ctrl(hWnd, &CLASS_STATIC, wbuf(g_strs.field_pid, &buf).ptr, base | win32.SS_LEFT, 24, 562, 44, 18, 0);
+    g_htxt_pid = ctrl(hWnd, &CLASS_EDIT, null, base | win32.WS_TABSTOP | win32.WS_BORDER | win32.ES_AUTOHSCROLL | win32.ES_READONLY, 72, 560, 304, 22, ID_TXT_PID);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.window_info, &buf).ptr, base | win32.BS_GROUPBOX, 12, 450, 376, 136, 0);
 
     // Bottom buttons.
-    g_hbtn_ok = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.ok, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_DEFPUSHBUTTON, 236, 656, 76, 24, ID_OK);
-    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.cancel, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 320, 656, 68, 24, ID_CANCEL);
+    g_hbtn_ok = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.ok, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_DEFPUSHBUTTON, 236, 592, 76, 24, ID_OK);
+    _ = ctrl(hWnd, &CLASS_BUTTON, wbuf(g_strs.cancel, &buf).ptr, base | win32.WS_TABSTOP | win32.BS_PUSHBUTTON, 320, 592, 68, 24, ID_CANCEL);
 }
 
-/// Scale the 96-DPI layout for the current system DPI, but cap it so the whole
-/// dialog still fits the work area on small or heavily scaled screens.
-fn chooseScale(dpi: i32) f32 {
+/// Scale the 96-DPI layout for the monitor's DPI, but cap it so the whole
+/// dialog still fits that monitor's work area on small screens.
+fn chooseScale(dpi: i32, work: win32.RECT) f32 {
     var scale = ui.scaleFor(dpi);
-    const work = ui.workArea();
     const avail_w = work.right - work.left;
     const avail_h = work.bottom - work.top;
     while (scale > 1.0) {
@@ -353,6 +402,10 @@ fn ctrl(parent: win32.HWND, class: win32.LPCWSTR, text: ?win32.LPCWSTR, style: u
     ) orelse return undefined;
     if (g_font) |f| {
         _ = win32.SendMessageW(hw, win32.WM_SETFONT, @intFromPtr(f), 1);
+    }
+    if (g_layout_len < g_layout.len) {
+        g_layout[g_layout_len] = .{ .hwnd = hw, .x = x, .y = y, .w = w, .h = h };
+        g_layout_len += 1;
     }
     return hw;
 }
@@ -408,8 +461,10 @@ fn addFromEdit(list: *std.ArrayList([]const u8), hedit: win32.HWND, hlb: win32.H
     const n = win32.SendMessageW(hedit, win32.WM_GETTEXT, 512, @as(win32.LPARAM, @intCast(@intFromPtr(&buf))));
     if (n <= 0) return;
     const text = std.unicode.utf16LeToUtf8Alloc(g_a, buf[0..@intCast(n)]) catch return;
-    list.append(g_a, text) catch return;
-    _ = win32.SendMessageW(hlb, win32.LB_ADDSTRING, 0, @as(win32.LPARAM, @intCast(@intFromPtr(buf[0..@intCast(n) :0].ptr))));
+    if (!listContains(list.items, text)) {
+        list.append(g_a, text) catch return;
+        _ = win32.SendMessageW(hlb, win32.LB_ADDSTRING, 0, @as(win32.LPARAM, @intCast(@intFromPtr(buf[0..@intCast(n) :0].ptr))));
+    }
     const empty = [_]u16{0};
     _ = win32.SendMessageW(hedit, win32.WM_SETTEXT, 0, @as(win32.LPARAM, @intCast(@intFromPtr(&empty))));
 }
@@ -427,8 +482,16 @@ fn addPicked(list: *std.ArrayList([]const u8), hlb: win32.HWND) void {
     const n = win32.GetClassNameW(h, &buf, @intCast(buf.len));
     if (n <= 0) return;
     const cls = std.unicode.utf16LeToUtf8Alloc(g_a, buf[0..@intCast(n)]) catch return;
+    if (listContains(list.items, cls)) return;
     list.append(g_a, cls) catch return;
     _ = win32.SendMessageW(hlb, win32.LB_ADDSTRING, 0, @as(win32.LPARAM, @intCast(@intFromPtr(buf[0..@intCast(n) :0].ptr))));
+}
+
+fn listContains(list: []const []const u8, value: []const u8) bool {
+    for (list) |item| {
+        if (std.mem.eql(u8, item, value)) return true;
+    }
+    return false;
 }
 
 // =============================================================================

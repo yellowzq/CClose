@@ -99,6 +99,7 @@ pub const WM_MOUSEMOVE: u32 = 0x0200;
 pub const WM_MOUSEWHEEL: u32 = 0x020A;
 pub const WM_NCHITTEST: u32 = 0x0084;
 pub const WM_PAINT: u32 = 0x000F;
+pub const WM_DPICHANGED: u32 = 0x02E0;
 
 pub const WM_USER: u32 = 0x0400;
 // Tray icon callback message (app-defined: WM_USER + 1), shared by tray.zig and
@@ -222,13 +223,14 @@ pub const SM_YVIRTUALSCREEN: i32 = 77;
 pub const SM_CXVIRTUALSCREEN: i32 = 78;
 pub const SM_CYVIRTUALSCREEN: i32 = 79;
 pub const MONITOR_DEFAULTTONEAREST: u32 = 2;
+pub const MDT_EFFECTIVE_DPI: u32 = 0;
+pub const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2: *anyopaque = @ptrFromInt(@as(usize, @bitCast(@as(isize, -4))));
 pub const COLOR_BTNFACE: i32 = 15;
 pub const COLOR_INFOBK: i32 = 24;
 pub const COLOR_INFOTEXT: i32 = 23;
 pub const COLOR_WINDOWFRAME: i32 = 6;
 pub const DEFAULT_GUI_FONT: i32 = 17;
 pub const LOGPIXELSX: i32 = 88;
-pub const SPI_GETWORKAREA: u32 = 0x0030;
 pub const TRANSPARENT: i32 = 1;
 pub const DT_CENTER: u32 = 0x0001;
 pub const DT_VCENTER: u32 = 0x0004;
@@ -496,7 +498,7 @@ pub extern "user32" fn KillTimer(
 
 pub extern "user32" fn SetWindowPos(
     hWnd: HWND,
-    hWndInsertAfter: HWND,
+    hWndInsertAfter: ?HWND,
     X: i32,
     Y: i32,
     cx: i32,
@@ -639,14 +641,22 @@ pub extern "user32" fn GetWindowRect(
     lpRect: *RECT,
 ) callconv(.winapi) BOOL;
 
-pub extern "user32" fn SystemParametersInfoW(
-    uiAction: u32,
-    uiParam: u32,
-    pvParam: ?*anyopaque,
-    fWinIni: u32,
+pub extern "user32" fn SetProcessDPIAware() callconv(.winapi) BOOL;
+
+pub extern "user32" fn SetProcessDpiAwarenessContext(
+    value: ?*anyopaque,
 ) callconv(.winapi) BOOL;
 
-pub extern "user32" fn SetProcessDPIAware() callconv(.winapi) BOOL;
+pub extern "user32" fn GetDpiForWindow(
+    hwnd: HWND,
+) callconv(.winapi) u32;
+
+pub extern "shcore" fn GetDpiForMonitor(
+    hmonitor: HMONITOR,
+    dpiType: u32,
+    dpiX: *u32,
+    dpiY: *u32,
+) callconv(.winapi) i32;
 
 pub extern "user32" fn SetLayeredWindowAttributes(
     hwnd: HWND,

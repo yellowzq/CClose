@@ -227,8 +227,11 @@ pub export fn wWinMain(
     if (win32.GetLastError() == win32.ERROR_ALREADY_EXISTS) return 0;
     g_singleton_mutex = mutex;
 
-    // Set DPI awareness programmatically (no manifest needed)
-    _ = win32.SetProcessDPIAware();
+    // Per-monitor V2 so the toast and settings follow the DPI of the monitor
+    // they are shown on. Fall back to system awareness on older Windows.
+    if (win32.SetProcessDpiAwarenessContext(win32.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == 0) {
+        _ = win32.SetProcessDPIAware();
+    }
 
     g_hInstance = hInstance;
     g_hWnd = undefined;
