@@ -14,7 +14,7 @@ pub fn add(hWnd: win32.HWND, _: win32.HINSTANCE) bool {
     nid.uID = TRAY_ICON_ID;
     nid.uFlags = win32.NIF_MESSAGE | win32.NIF_ICON | win32.NIF_TIP;
     nid.uCallbackMessage = win32.WM_TRAY;
-    nid.hIcon = icon.app();
+    nid.hIcon = icon.app() orelse icon.fallback();
     @memset(nid.szTip[0..], 0);
     const tip = TRAY_TOOLTIP;
     for (tip, 0..) |c, i| {
