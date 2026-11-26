@@ -92,6 +92,10 @@ var g_hbtn_ok: win32.HWND = undefined;
 var g_follow_active: bool = false;
 var g_picked: ?win32.HWND = null;
 
+// Edited in the dialog, committed to g_cfg only on OK.
+var g_except_edit: std.ArrayList([]const u8) = .empty;
+var g_black_edit: std.ArrayList([]const u8) = .empty;
+
 // Control class names (ASCII, sentinel-terminated for wide-string coercion).
 const CLASS_BUTTON = [_:0]u16{ 'B', 'U', 'T', 'T', 'O', 'N' };
 const CLASS_STATIC = [_:0]u16{ 'S', 'T', 'A', 'T', 'I', 'C' };
@@ -205,13 +209,13 @@ fn settingsWndProc(hWnd: win32.HWND, message: u32, wParam: win32.WPARAM, lParam:
             switch (id) {
                 ID_OK, IDOK => doOk(hWnd),
                 ID_CANCEL, IDCANCEL => doCancel(hWnd),
-                ID_ADD_EXCEPT => addFromEdit(&g_cfg.titlebar_exceptions, g_hedit_except, g_hlb_except),
-                ID_DEL_EXCEPT => delSelected(&g_cfg.titlebar_exceptions, g_hlb_except),
-                ID_ADD_BLACK => addFromEdit(&g_cfg.esc_blacklist, g_hedit_black, g_hlb_black),
-                ID_DEL_BLACK => delSelected(&g_cfg.esc_blacklist, g_hlb_black),
+                ID_ADD_EXCEPT => addFromEdit(&g_except_edit, g_hedit_except, g_hlb_except),
+                ID_DEL_EXCEPT => delSelected(&g_except_edit, g_hlb_except),
+                ID_ADD_BLACK => addFromEdit(&g_black_edit, g_hedit_black, g_hlb_black),
+                ID_DEL_BLACK => delSelected(&g_black_edit, g_hlb_black),
                 ID_CHK_FOLLOW => toggleFollow(hWnd),
-                ID_PICK_EXCEPT => addPicked(&g_cfg.titlebar_exceptions, g_hlb_except),
-                ID_PICK_BLACK => addPicked(&g_cfg.esc_blacklist, g_hlb_black),
+                ID_PICK_EXCEPT => addPicked(&g_except_edit, g_hlb_except),
+                ID_PICK_BLACK => addPicked(&g_black_edit, g_hlb_black),
                 else => {},
             }
         },
@@ -229,6 +233,8 @@ fn settingsWndProc(hWnd: win32.HWND, message: u32, wParam: win32.WPARAM, lParam:
             g_hDlg = null;
             g_follow_active = false;
             g_picked = null;
+            g_except_edit = .empty;
+            g_black_edit = .empty;
         },
         else => {
             return win32.DefWindowProcW(hWnd, message, wParam, lParam);
@@ -352,14 +358,28 @@ fn ctrl(parent: win32.HWND, class: win32.LPCWSTR, text: ?win32.LPCWSTR, style: u
 }
 
 fn initControls() void {
+    initEditLists();
     setCheck(g_hchk_middle, g_cfg.enable_titlebar_middle_click);
     setCheck(g_hchk_right, g_cfg.enable_titlebar_right_click);
     setCheck(g_hchk_hold, g_cfg.enable_titlebar_hold_left_click);
     setCheck(g_hchk_esc, g_cfg.enable_esc_double_press);
     setCheck(g_hchk_trans, g_cfg.enable_transparency);
     setCheck(g_hchk_follow, false);
-    fillListbox(g_hlb_except, g_cfg.titlebar_exceptions.items);
-    fillListbox(g_hlb_black, g_cfg.esc_blacklist.items);
+    fillListbox(g_hlb_except, g_except_edit.items);
+    fillListbox(g_hlb_black, g_black_edit.items);
+}
+
+/// Copy the committed lists into the dialog's working copies. Only OK writes
+/// them back; Cancel or closing the window discards the edits.
+fn initEditLists() void {
+    g_except_edit = .empty;
+    g_black_edit = .empty;
+    for (g_cfg.titlebar_exceptions.items) |item| {
+        g_except_edit.append(g_a, item) catch {};
+    }
+    for (g_cfg.esc_blacklist.items) |item| {
+        g_black_edit.append(g_a, item) catch {};
+    }
 }
 
 fn setCheck(h: win32.HWND, on: bool) void {
@@ -483,11 +503,17 @@ fn doOk(hWnd: win32.HWND) void {
     g_cfg.enable_titlebar_hold_left_click = getCheck(g_hchk_hold);
     g_cfg.enable_esc_double_press = getCheck(g_hchk_esc);
     g_cfg.enable_transparency = getCheck(g_hchk_trans);
+    g_cfg.titlebar_exceptions = g_except_edit;
+    g_cfg.esc_blacklist = g_black_edit;
+    g_except_edit = .empty;
+    g_black_edit = .empty;
     g_cfg.save(g_a);
     _ = win32.DestroyWindow(hWnd);
 }
 
 fn doCancel(hWnd: win32.HWND) void {
+    g_except_edit = .empty;
+    g_black_edit = .empty;
     _ = win32.DestroyWindow(hWnd);
 }
 
