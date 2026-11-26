@@ -21,6 +21,55 @@ pub fn build(b: *std.Build) !void {
     build_options.addOption([]const u8, "version", version);
     mod.addOptions("build_options", build_options);
 
+    // Generate VERSIONINFO from the same version, so the exe metadata can
+    // never drift from the About box. The icon stays a normal asset.
+    const semver = std.SemanticVersion.parse(version) catch std.SemanticVersion{
+        .major = 0,
+        .minor = 0,
+        .patch = 0,
+    };
+    const rc = b.fmt(
+        \\2 ICON "app.ico"
+        \\VS_VERSION_INFO VERSIONINFO
+        \\FILEVERSION {d},{d},{d},0
+        \\PRODUCTVERSION {d},{d},{d},0
+        \\FILEFLAGSMASK 0x3f
+        \\FILEFLAGS 0x0
+        \\FILEOS 0x40004
+        \\FILETYPE 0x1
+        \\FILESUBTYPE 0x0
+        \\BEGIN
+        \\    BLOCK "StringFileInfo"
+        \\    BEGIN
+        \\        BLOCK "040904b0"
+        \\        BEGIN
+        \\            VALUE "CompanyName", "yellowzq"
+        \\            VALUE "FileDescription", "CClose - Windows window management tool"
+        \\            VALUE "FileVersion", "{s}"
+        \\            VALUE "InternalName", "CClose"
+        \\            VALUE "LegalCopyright", "Copyright (c) 2026 yellowzq"
+        \\            VALUE "OriginalFilename", "CClose.exe"
+        \\            VALUE "ProductName", "CClose"
+        \\            VALUE "ProductVersion", "{s}"
+        \\        END
+        \\    END
+        \\    BLOCK "VarFileInfo"
+        \\    BEGIN
+        \\        VALUE "Translation", 0x0409, 0x04b0
+        \\    END
+        \\END
+        \\
+    , .{
+        semver.major, semver.minor, semver.patch,
+        semver.major, semver.minor, semver.patch,
+        version,      version,
+    });
+    const wf = b.addWriteFiles();
+    mod.addWin32ResourceFile(.{
+        .file = wf.add("CClose.rc", rc),
+        .include_paths = &.{b.path("assets")},
+    });
+
     const exe = b.addExecutable(.{
         .name = "CClose",
         .root_module = mod,
