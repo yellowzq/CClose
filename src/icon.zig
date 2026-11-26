@@ -14,3 +14,12 @@ pub fn app() ?win32.HICON {
         @as(win32.LPCWSTR, @ptrFromInt(RESOURCE_ID)),
     );
 }
+
+/// Fallback used when the embedded icon resource cannot be loaded, so the
+/// tray icon is still visible instead of silently disappearing.
+pub fn fallback() ?win32.HICON {
+    return win32.LoadIconW(
+        null,
+        @as(win32.LPCWSTR, @ptrFromInt(@as(usize, win32.IDI_APPLICATION))),
+    );
+}
