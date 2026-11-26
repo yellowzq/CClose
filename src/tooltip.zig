@@ -19,7 +19,7 @@ const TIP_OFFSET_Y: i32 = 16;
 
 const TIP_CLASS_NAME_DATA = [_]u16{ 'C', 'C', 'l', 'o', 's', 'e', 'T', 'i', 'p', 'C', 'l', 'a', 's', 's', 0 };
 const TIP_CLASS_NAME: [*:0]const u16 = @ptrCast(&TIP_CLASS_NAME_DATA);
-const TIP_WINDOW_NAME_DATA = [_]u16{ 0 };
+const TIP_WINDOW_NAME_DATA = [_]u16{0};
 const TIP_WINDOW_NAME: [*:0]const u16 = @ptrCast(&TIP_WINDOW_NAME_DATA);
 
 // =============================================================================

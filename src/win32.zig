@@ -73,7 +73,6 @@ pub const MSG = extern struct {
     pt: POINT,
 };
 
-
 // =============================================================================
 // Constants
 // =============================================================================
@@ -460,8 +459,7 @@ pub extern "user32" fn GetClassNameW(
     nMaxCount: i32,
 ) callconv(.winapi) i32;
 
-pub extern "user32" fn CreatePopupMenu(
-) callconv(.winapi) ?HMENU;
+pub extern "user32" fn CreatePopupMenu() callconv(.winapi) ?HMENU;
 
 pub extern "user32" fn AppendMenuW(
     hMenu: HMENU,
@@ -506,8 +504,7 @@ pub extern "user32" fn SetWindowPos(
     uFlags: u32,
 ) callconv(.winapi) BOOL;
 
-pub extern "user32" fn GetForegroundWindow(
-) callconv(.winapi) ?HWND;
+pub extern "user32" fn GetForegroundWindow() callconv(.winapi) ?HWND;
 
 pub extern "user32" fn GetCursorPos(
     lpPoint: *POINT,
