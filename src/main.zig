@@ -36,6 +36,11 @@ const IDM_SETTINGS: usize = 1005;
 const SINGLETON_MUTEX_NAME_DATA = [_]u16{ 'C', 'C', 'l', 'o', 's', 'e', '_', 'S', 'i', 'n', 'g', 'l', 'e', 't', 'o', 'n', '_', 'M', 'u', 't', 'e', 'x', '_', 'v', '1', 0 };
 const SINGLETON_MUTEX_NAME: [*:0]const u16 = @ptrCast(&SINGLETON_MUTEX_NAME_DATA);
 
+// Broadcast by Explorer when it (re)creates the taskbar. Re-add the tray icon
+// so it survives an Explorer restart.
+const TASKBAR_CREATED_DATA = [_]u16{ 'T', 'a', 's', 'k', 'b', 'a', 'r', 'C', 'r', 'e', 'a', 't', 'e', 'd', 0 };
+const TASKBAR_CREATED: [*:0]const u16 = @ptrCast(&TASKBAR_CREATED_DATA);
+
 // =============================================================================
 // Global State
 // =============================================================================
@@ -43,6 +48,7 @@ const SINGLETON_MUTEX_NAME: [*:0]const u16 = @ptrCast(&SINGLETON_MUTEX_NAME_DATA
 var g_hWnd: win32.HWND = undefined;
 var g_hInstance: win32.HINSTANCE = undefined;
 var g_autostart: bool = false;
+var g_taskbar_created_msg: u32 = 0;
 
 // Singleton guard: holds the named mutex for the process lifetime.
 // The kernel closes the handle (and releases the mutex) when the process exits.
@@ -111,6 +117,11 @@ fn showContextMenu(hWnd: win32.HWND) void {
 // =============================================================================
 
 fn wndProc(hWnd: win32.HWND, message: u32, wParam: win32.WPARAM, lParam: win32.LPARAM) callconv(.winapi) win32.LRESULT {
+    if (g_taskbar_created_msg != 0 and message == g_taskbar_created_msg) {
+        // Explorer restarted: the old notification icon is gone.
+        _ = tray.add(hWnd, g_hInstance);
+        return 0;
+    }
     switch (message) {
         win32.WM_CREATE => {
             g_hWnd = hWnd;
@@ -221,6 +232,7 @@ pub export fn wWinMain(
 
     g_hInstance = hInstance;
     g_hWnd = undefined;
+    g_taskbar_created_msg = win32.RegisterWindowMessageW(TASKBAR_CREATED);
 
     var wc: win32.WNDCLASSEXW = undefined;
     wc.cbSize = @sizeOf(win32.WNDCLASSEXW);

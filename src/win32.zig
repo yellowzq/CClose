@@ -375,6 +375,10 @@ pub extern "user32" fn RegisterClassExW(
     lpWndClass: *const WNDCLASSEXW,
 ) callconv(.winapi) u16;
 
+pub extern "user32" fn RegisterWindowMessageW(
+    lpString: LPCWSTR,
+) callconv(.winapi) u32;
+
 pub extern "user32" fn CreateWindowExW(
     dwExStyle: u32,
     lpClassName: LPCWSTR,
