@@ -3,13 +3,8 @@ const build_options = @import("build_options");
 
 extern "kernel32" fn GetUserDefaultUILanguage() u16;
 
-/// Release CI passes -Dversion; local builds read src/VERSION. @embedFile
-/// makes the file a compile dependency, so editing it rebuilds the About
-/// string (a value read in build.zig at configure time would be cached).
-const version = if (build_options.version.len != 0)
-    build_options.version
-else
-    std.mem.trim(u8, @embedFile("VERSION"), " \t\r\n");
+/// Resolved in build.zig from -Dversion or git describe; no file needs bumping.
+const version = build_options.version;
 
 const about_msg = std.fmt.comptimePrint(
     "CClose zig v{s}\n\nCopyright(c)2026 yellowzq",

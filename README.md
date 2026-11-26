@@ -62,7 +62,16 @@ zig build
 zig build -Dtarget=x86_64-windows-gnu
 ```
 
-版本号默认读取 `src/VERSION`，可用 `-Dversion=0.1.2` 覆盖。发布 CI 会用 tag 覆盖版本号，并校验 `src/VERSION` 与 `assets/app.rc` 是否一致；tag 支持 `vX.Y.Z` 和 `vX.Y.Z-suffix`。
+版本号由 Git tag 决定：CI 使用 tag，本地构建使用 `git describe --tags`，也可用 `-Dversion=0.1.3` 覆盖；仓库里没有需要手动修改的版本文件（About 与 exe VERSIONINFO 都从同一版本生成）。
+
+发布只需推 tag：
+
+```bash
+git tag v0.1.3
+git push origin main --tags
+```
+
+tag 支持 `vX.Y.Z`（正式版）和 `vX.Y.Z-suffix`（预发布）；CI 校验 tag 格式、构建并发布 Release。
 
 产物位于 `zig-out/bin/CClose.exe`。
 
